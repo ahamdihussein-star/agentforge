@@ -4362,6 +4362,86 @@ try:
 except Exception as _ag_err:
     print(f"⚠️ API auth gate NOT registered: {_ag_err}")
 
+
+# --- Admin maintenance: reset workspace (delete test data, keep users/settings) ---
+_RESET_DELETE_TABLES = [
+    "agents", "agent_access_policies", "agent_data_policies", "agent_action_policies",
+    "agent_deployments", "end_user_sessions",
+    "conversations", "messages", "conversation_shares",
+    "tools", "tool_executions", "tool_permissions", "db_permissions",
+    "knowledge_bases", "documents", "document_chunks", "kb_queries", "kb_permissions",
+    "process_executions", "process_node_executions", "process_approval_requests",
+    "lab_history_items", "lab_mock_apis",
+]
+
+
+@app.post("/api/admin/reset-workspace")
+async def reset_workspace(request: Dict[str, Any], current_user: User = Depends(require_super_admin)):
+    """DANGER (super-admin only): delete all agents/tools/knowledge/conversations/process runs.
+    Keeps users, roles, organizations, and all settings. Requires confirm phrase."""
+    if (request or {}).get("confirm") != "DELETE TEST DATA":
+        raise HTTPException(400, "Confirmation phrase required: 'DELETE TEST DATA'")
+    from database.base import get_engine
+    from sqlalchemy import text as _sql_text
+    engine = get_engine()
+    deleted = {}
+    with engine.begin() as conn:
+        existing = set(r[0] for r in conn.execute(_sql_text(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema='public'")))
+        present = [t for t in _RESET_DELETE_TABLES if t in existing]
+        for t in present:
+            try:
+                deleted[t] = conn.execute(_sql_text('SELECT COUNT(*) FROM "%s"' % t)).scalar()
+            except Exception:
+                deleted[t] = None
+        if present:
+            conn.execute(_sql_text("TRUNCATE " + ", ".join('"%s"' % t for t in present) + " RESTART IDENTITY CASCADE"))
+    # Clear in-memory caches so no restart is needed.
+    for _attr in ("agents", "tools", "documents", "conversations"):
+        try:
+            getattr(app_state, _attr).clear()
+        except Exception:
+            pass
+    total = sum(v for v in deleted.values() if isinstance(v, int))
+    print(f"🧹 [RESET] super-admin '{getattr(current_user, 'email', current_user)}' wiped {total} rows from {len(deleted)} tables")
+    return {"status": "ok", "deleted_rows": total, "tables": deleted}
+
+
+@app.get("/admin/maintenance", response_class=HTMLResponse)
+async def admin_maintenance_page():
+    """Minimal one-button page to reset the workspace. The action is protected server-side
+    (super-admin token required); this page only sends the request using the logged-in token."""
+    return HTMLResponse("""<!doctype html><html><head><meta charset="utf-8">
+<title>AgentForge - Maintenance</title><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:48px auto;padding:0 16px;color:#1a1a2e}
+.card{border:1px solid #e74c3c;border-radius:12px;padding:24px;background:#fff5f5}
+h1{font-size:20px}button{background:#e74c3c;color:#fff;border:0;border-radius:8px;padding:12px 20px;font-size:15px;cursor:pointer}
+button:disabled{opacity:.5;cursor:default}#out{margin-top:16px;white-space:pre-wrap;font-size:14px}</style></head>
+<body><div class="card"><h1>🧹 Reset workspace</h1>
+<p>This permanently deletes <b>all agents, tools, knowledge bases, conversations and process runs</b>.
+It keeps users, roles, organization and settings. This cannot be undone.</p>
+<p>You must be logged in as a super-admin in this browser.</p>
+<button id="btn" onclick="go()">Delete all test data</button>
+<div id="out"></div></div>
+<script>
+async function go(){
+  if(!confirm("Delete ALL agents, tools, KBs, conversations and process runs? This cannot be undone."))return;
+  var t=localStorage.getItem('agentforge_token')||sessionStorage.getItem('agentforge_token');
+  var out=document.getElementById('out'), btn=document.getElementById('btn');
+  if(!t){out.textContent="No login token found. Open the app, log in as super-admin, then reload this page.";return;}
+  btn.disabled=true; out.textContent="Working...";
+  try{
+    var r=await fetch('/api/admin/reset-workspace',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},
+      body:JSON.stringify({confirm:'DELETE TEST DATA'})});
+    var d=await r.json();
+    if(r.ok){out.textContent="✅ Done. Deleted "+d.deleted_rows+" rows.\\n"+JSON.stringify(d.tables,null,2);}
+    else{out.textContent="❌ "+(d.detail||JSON.stringify(d))+" (status "+r.status+")"; btn.disabled=false;}
+  }catch(e){out.textContent="❌ "+e; btn.disabled=false;}
+}
+</script></body></html>""")
+
+
 # Include Security Router
 if SECURITY_AVAILABLE:
     app.include_router(security_router)
