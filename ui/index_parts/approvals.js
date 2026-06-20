@@ -1734,9 +1734,6 @@
             ensureModalInBody('select-tool-modal');
             modal.classList.remove('hidden');
             modal.classList.add('flex');
-            // The create-agent wizard container is z-index:9999, so the picker (z-50)
-            // was opening BEHIND it and was invisible. Lift it above the wizard.
-            modal.style.zIndex = '10000';
             
             // Reset temp selection to current selection
             tempToolSelection = {

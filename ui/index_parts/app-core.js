@@ -452,6 +452,16 @@ const API='';
             const modal = document.getElementById(modalId);
             if (!modal) return false;
             if (modal.parentElement !== document.body) document.body.appendChild(modal);
+            // The create-agent wizard container is z-index:9999. Any modal opened from
+            // INSIDE it (tool picker, icon picker, api-test, kb-view, access-control, ...)
+            // must sit ABOVE the wizard or it renders behind it and is invisible.
+            // Standard z-index, so this behaves identically across browsers.
+            try {
+                const wiz = document.querySelector('.create-wizard-modal');
+                if (wiz && getComputedStyle(wiz).display !== 'none') {
+                    modal.style.zIndex = '10000';
+                }
+            } catch (_) {}
             return true;
         }
 
