@@ -48,7 +48,7 @@ get_current_user = None
 
 try:
     from core.security import security_state, User
-    from api.security import router as security_router, get_current_user, get_current_user_optional
+    from api.security import router as security_router, get_current_user, get_current_user_optional, require_super_admin
     SECURITY_AVAILABLE = True
     print("✅ Security module available")
 except ImportError:
@@ -60,6 +60,8 @@ except ImportError:
     def get_current_user():
         return None
     def get_current_user_optional():
+        return None
+    def require_super_admin():
         return None
 
 # Health Check Module
