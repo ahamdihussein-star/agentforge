@@ -1039,7 +1039,7 @@
             // Fetch current settings to get configured providers
             let settings = {};
             try {
-                const r = await fetch(API + '/api/settings');
+                const r = await fetch(API + '/api/settings', { headers: { ...(typeof getAuthHeaders === 'function' ? getAuthHeaders() : {}) } });
                 const data = await r.json();
                 settings = data.settings || data || {};
             } catch (e) {

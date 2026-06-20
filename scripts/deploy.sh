@@ -6,16 +6,20 @@
 # so the secret is never hardcoded, never printed, and never committed.
 #
 # Usage:
-#   1) cp scripts/.deploy.env.example scripts/.deploy.env
-#   2) put your PAT in scripts/.deploy.env  (GITHUB_TOKEN=...)
-#   3) bash scripts/deploy.sh "optional commit message"
+#   cp scripts/.deploy.env.example scripts/.deploy.env   # then put your PAT in it
+#   bash scripts/deploy.sh ["commit message"]            # interactive, explicit file list
+#   bash scripts/deploy.sh -y ["message"]                # no confirmation prompt
+#   bash scripts/deploy.sh -y -a ["message"]             # stage ALL changes (git add -A)
+#
+# Flags:
+#   -y, --yes    Skip the confirmation prompt (for automation).
+#   -a, --all    Stage every change (git add -A) instead of the explicit FILES_TO_COMMIT
+#                list. Safe because secrets (.env, scripts/.deploy.env) are gitignored.
 #
 # Safety:
-#   - Stages ONLY the files in FILES_TO_COMMIT (no `git add -A`, so stray/los noise
-#     is never committed).
 #   - Refuses to run unless the secret file is gitignored.
 #   - Redacts the token from any git output.
-#   - Asks for confirmation before committing/pushing (push triggers a Railway deploy).
+#   - Pushing to the deploy branch triggers a Railway deploy.
 #
 set -euo pipefail
 
@@ -25,9 +29,23 @@ cd "$ROOT"
 SECRET_FILE="scripts/.deploy.env"
 REMOTE="${GIT_REMOTE:-origin}"
 BRANCH="${GIT_BRANCH:-main}"
-COMMIT_MSG="${1:-chore(security): Phase 1 - API auth gate (monitor), mask provider keys, block /api/debug; update project-brain docs}"
 
-# Files this script is allowed to commit. Edit this list as the work evolves.
+AUTO_CONFIRM=0
+STAGE_ALL=0
+COMMIT_MSG=""
+
+# --- parse args ---
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -y|--yes) AUTO_CONFIRM=1; shift ;;
+    -a|--all) STAGE_ALL=1; shift ;;
+    -ya|-ay) AUTO_CONFIRM=1; STAGE_ALL=1; shift ;;
+    *) COMMIT_MSG="$1"; shift ;;
+  esac
+done
+COMMIT_MSG="${COMMIT_MSG:-chore: sync changes}"
+
+# Files committed when NOT using --all. Edit as the work evolves.
 FILES_TO_COMMIT=(
   "api/auth_gate.py"
   "api/main.py"
@@ -37,7 +55,12 @@ FILES_TO_COMMIT=(
   "project-brain/regression-watchlist.md"
   ".gitignore"
   "scripts/deploy.sh"
+  "scripts/watch-deploy.sh"
+  "scripts/install-autodeploy.sh"
   "scripts/.deploy.env.example"
+  "docs/DEPLOYMENT.md"
+  ".windsurf/workflows/deploy.md"
+  ".windsurf/workflows/smart-coding.md"
 )
 
 # --- load the secret ---
@@ -64,11 +87,16 @@ if [[ -z "$REPO_PATH" || "$REPO_PATH" == "$REMOTE_URL" ]]; then
   exit 1
 fi
 
-# --- stage only the allowed files ---
-echo "Staging:"
-for f in "${FILES_TO_COMMIT[@]}"; do
-  if [[ -e "$f" ]]; then git add -- "$f"; echo "  + $f"; fi
-done
+# --- stage ---
+if [[ "$STAGE_ALL" -eq 1 ]]; then
+  git add -A
+  echo "Staged: all changes (git add -A; secrets remain gitignored)"
+else
+  echo "Staging:"
+  for f in "${FILES_TO_COMMIT[@]}"; do
+    if [[ -e "$f" ]]; then git add -- "$f"; echo "  + $f"; fi
+  done
+fi
 
 if git diff --cached --quiet; then
   echo "Nothing staged to commit. Exiting."
@@ -79,8 +107,11 @@ echo
 echo "Target: $REPO_PATH  branch: $BRANCH"
 echo "NOTE: pushing will trigger a Railway deploy. (AUTH_GATE_MODE defaults to 'monitor'.)"
 git --no-pager diff --cached --stat
-read -r -p "Proceed with commit + push? [y/N] " ans
-[[ "${ans:-}" == "y" || "${ans:-}" == "Y" ]] || { echo "Aborted (changes remain staged)."; exit 0; }
+
+if [[ "$AUTO_CONFIRM" -ne 1 ]]; then
+  read -r -p "Proceed with commit + push? [y/N] " ans
+  [[ "${ans:-}" == "y" || "${ans:-}" == "Y" ]] || { echo "Aborted (changes remain staged)."; exit 0; }
+fi
 
 git commit -m "$COMMIT_MSG"
 
@@ -91,4 +122,3 @@ git push "$PUSH_URL" "HEAD:${BRANCH}" 2>&1 | sed -E "s#${GITHUB_TOKEN}#***REDACT
 
 echo
 echo "Pushed to $REPO_PATH ($BRANCH). Railway will deploy."
-echo "Next: watch Railway logs for 'auth_gate[monitor]: would BLOCK ...', then set AUTH_GATE_MODE=enforce when clean."

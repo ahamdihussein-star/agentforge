@@ -97,6 +97,7 @@
 - **Login funnel must stay public**: `/api/security/auth/login|register|refresh|logout|forgot-password|reset-password|accept-invitation|verify-email|resend-verification|password-policy|first-login-password-change`, `/api/security/mfa/send-login-code|verify`, and `/api/health*`. If a login/bootstrap call starts 401-ing, it's missing from the allowlist.
 - **Channels namespace**: per-agent public endpoints must live under `/api/public/*` (already allowlisted) and authenticate via per-agent API key, not user token.
 - **Rollout**: `monitor` logs only; flip to `enforce` only after logs are clean.
+- **SPA auth header shim**: `ui/index.html` installs a `window.fetch` shim (early, before the bundles) that auto-attaches `Authorization: Bearer <token>` to every same-app `/api/` request when a token exists. This is why bare `fetch(API + '/api/...')` calls still authenticate under `enforce`. Do NOT remove it, and keep it loading before the `index_parts/*.js` bundles.
 
 **Test**: with `enforce`, login still works end-to-end; SPA loads after login; `/api/debug/*` and a random `/api/*` without a token return 404/401.
 

@@ -536,7 +536,7 @@
         
         async function loadSettings() {
             try {
-                const r = await fetch(API + '/api/settings');
+                const r = await fetch(API + '/api/settings', { headers: { ...(typeof getAuthHeaders === 'function' ? getAuthHeaders() : {}) } });
                 const data = await r.json();
                 currentSettings = data.settings;
                 populateSettingsForm(currentSettings);

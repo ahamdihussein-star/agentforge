@@ -37,6 +37,10 @@ This re-indexes modified files.
 If architecture changed, update `project-brain/architecture.md`.
 If new feature added, update `project-brain/product.md`.
 
-### 8. Commit & Push
+### 8. Commit & Push (deploys to Railway)
 // turbo
-Auto-commit and push changes with conventional commit message.
+Run: `bash scripts/deploy.sh -y -a "chore: {summary_of_change}"`
+
+This stages all changes, commits, and pushes to `main`; Railway auto-deploys.
+See `docs/DEPLOYMENT.md` and the `deploy` workflow. Keep `AUTH_GATE_MODE=monitor`
+on Railway until logs are verified, then switch to `enforce`.

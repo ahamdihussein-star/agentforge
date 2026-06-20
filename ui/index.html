@@ -10,6 +10,33 @@
 
     <script src="/ui/theme.js"></script>
     <script>
+    // === Auth header shim ===
+    // Ensure every same-app /api/ request carries the bearer token when one exists
+    // and none was set explicitly. Closes header-less fetch() calls so the API auth
+    // gate (enforce mode) does not 401 logged-in users. Never throws.
+    (function () {
+        if (window.__authFetchPatched) return;
+        window.__authFetchPatched = true;
+        var _fetch = window.fetch.bind(window);
+        window.fetch = function (input, init) {
+            try {
+                if (typeof input === 'string' && input.indexOf('/api/') !== -1) {
+                    init = init || {};
+                    var headers = new Headers(init.headers || {});
+                    if (!headers.has('Authorization')) {
+                        var t = (typeof authToken !== 'undefined' && authToken)
+                            || localStorage.getItem('agentforge_token')
+                            || sessionStorage.getItem('agentforge_token');
+                        if (t) headers.set('Authorization', 'Bearer ' + t);
+                    }
+                    init.headers = headers;
+                }
+            } catch (e) { /* never break fetch */ }
+            return _fetch(input, init);
+        };
+    })();
+    </script>
+    <script>
     // === Anti-Save-Password: neutralize all password fields before page navigation ===
     // Browsers detect type="password" inputs and offer to save credentials when
     // navigating away. This handler fires before the browser processes the
