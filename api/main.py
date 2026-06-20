@@ -10119,8 +10119,8 @@ Return the mock response as valid JSON:"""
             elif api_config.auth_type == 'api_key' and api_config.auth_config:
                 key_name = api_config.auth_config.get('key_name', 'X-API-Key')
                 headers[key_name] = api_config.auth_config.get('key_value', '')
-            
-            async with httpx.AsyncClient(timeout=30.0) as client:
+
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
                 if api_config.http_method == 'GET':
                     response = await client.get(url, headers=headers)
                 elif api_config.http_method == 'POST':
