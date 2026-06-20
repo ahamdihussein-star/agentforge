@@ -49,8 +49,10 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
   - Main Chat page shows **"Connection error. Please try again."** on a 401 (misleading — it's auth/session, not connectivity).
   - Wizard test-chat shows raw **"Error: HTTP 401"**.
   - Expired token does NOT redirect to login — app keeps showing errors. Should detect 401 → route to login with "session expired".
-- **Fixes:** (Phase 2) persist sessions in the DB so they survive restarts; (quick) global 401 handler → re-login screen with a clear message.
-- **Testing implication:** avoid pushing/redeploying during a test session; do one re-login and keep testing.
+- **Confirmed trigger:** an external **`auto-sync` task auto-commits + pushes the repo every ~15–30 min** (Railway "chore: auto-sync …" deployments). Each push = a redeploy = a server restart = all sessions wiped. So sessions die even when nobody pushes manually.
+- **FIX IMPLEMENTED (pending deploy):** `api/security.py` `get_current_user` now **rehydrates the session from the verified JWT** when the in-memory record is missing (after a restart), instead of returning 401. `py_compile` clean. After this deploys, redeploys no longer log users out.
+  - Trade-off noted in code: a logged-out token can be re-accepted if a restart happens before its JWT expiry. Proper Phase-2 fix: DB-backed sessions.
+- **Still recommended (Phase 2):** persist sessions in the DB; add a global 401 handler → re-login screen; replace misleading "Connection error" with "session expired".
 
 ## Pending areas (in order)
 - B. Chat page (finish) · C. Agent Hub management (Drafts, Select, edit/delete/duplicate)
