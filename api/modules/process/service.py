@@ -104,7 +104,7 @@ class _ProcessAPITool:
                     if f"{{{k}}}" not in (self._endpoint_path or "") and v is not None:
                         query_params[k] = v
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
                 resp = await client.request(
                     self._http_method, url,
                     headers=headers,
