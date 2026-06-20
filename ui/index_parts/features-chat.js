@@ -3176,6 +3176,17 @@ async function wizCreate() {
         const url = isEditing ? API + '/api/tools/' + editingToolId : API + '/api/tools';
         const method = isEditing ? 'PUT' : 'POST';
         
+        // REST API tools capture their endpoint into `config` during the wizard, but the
+        // backend persists API tools from the `api_config` field. Without sending it the
+        // tool was created with no Base URL/Endpoint ("API not configured"). Build it here.
+        const _apiCfg = (wizState.type === 'api') ? {
+            base_url: (wizState.data.config && wizState.data.config.base_url) || '',
+            http_method: (wizState.data.config && wizState.data.config.method) || 'GET',
+            endpoint_path: (wizState.data.config && wizState.data.config.path) || '',
+            auth_type: (wizState.data.config && wizState.data.config.auth_type) || 'none',
+            auth_value: (wizState.data.config && wizState.data.config.auth_value) || ''
+        } : undefined;
+
         const response = await fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
@@ -3184,6 +3195,7 @@ async function wizCreate() {
                 name: wizState.data.name,
                 description: wizState.data.description,
                 config: wizState.data.config,
+                api_config: _apiCfg,
                 // Access Control
                 access_type: wizState.data.access_type || 'owner_only',
                 allowed_user_ids: wizState.data.allowed_user_ids || [],
