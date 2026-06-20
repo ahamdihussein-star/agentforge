@@ -400,7 +400,20 @@ async def get_current_user(
     
     # Verify session is still active
     session = security_state.sessions.get(session_id)
-    if not session or not session.is_active:
+    if not session:
+        # Sessions are kept only in memory, and the server restarts often (every repo
+        # redeploy — e.g. the auto-sync push triggers a Railway deploy). Without this,
+        # a restart silently logs every user out mid-use ("Not authenticated" 401s).
+        # The JWT was already cryptographically verified above (verify_token) and carries
+        # the identity, so rehydrate the session from the token instead of failing.
+        # NOTE: this means a logged-out token can be re-accepted if a restart happens
+        # before its own JWT expiry. Proper fix (Phase 2): persist sessions in the DB.
+        try:
+            session = Session(id=session_id, user_id=user_id, org_id=token_org_id or "")
+            security_state.sessions[session_id] = session
+        except Exception:
+            return None
+    if not session.is_active:
         return None
     
     # Check session timeout
