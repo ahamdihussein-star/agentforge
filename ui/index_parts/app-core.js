@@ -3264,6 +3264,26 @@ const API='';
             window.createFlowGenerate = createFlowGenerate;
             window.selectBuildMode = selectBuildMode;
             window.closeCreateWizardModal = closeCreateWizardModal;
+
+            // Allow the Escape key to close the create-agent wizard (its X button can
+            // scroll out of view, leaving keyboard users stuck). If a picker modal is
+            // open on top of the wizard, Escape closes that first. Standard key handling,
+            // so it behaves the same across browsers.
+            if (!window.__wizardEscBound) {
+                window.__wizardEscBound = true;
+                document.addEventListener('keydown', function (e) {
+                    if (e.key !== 'Escape' && e.key !== 'Esc') return;
+                    const picker = document.getElementById('select-tool-modal');
+                    if (picker && picker.getClientRects().length && !picker.classList.contains('hidden')) {
+                        try { closeSelectToolModal(); } catch (_) {}
+                        return;
+                    }
+                    const wiz = document.querySelector('.create-wizard-modal');
+                    if (wiz && wiz.getClientRects().length) {
+                        try { closeCreateWizardModal(); } catch (_) {}
+                    }
+                });
+            }
             window.createFlowReset = createFlowReset;
             // Helpers for the generating animation (used across modules)
             window._setGeneratingLabels = _setGeneratingLabels;
