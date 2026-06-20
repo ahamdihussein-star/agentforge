@@ -82,6 +82,13 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 - Left `ui/shared/password-change-modal.js` untouched (its `window.alert` is an intentional fallback inside a custom alert wrapper).
 - Rule going forward: any blocking native dialog encountered = bug → replace with `showToast`.
 
+## ✅✅ END-TO-END: agent uses a tool, no hallucination (headline capability)
+- Built **"Currency Assistant"** via **Build Manually** (covers the manual path), model gpt-4o, with instruction "ALWAYS use the Exchange Rate Lookup tool; never guess a rate; if unavailable, say so."
+- Attached the **Exchange Rate Lookup** tool (Tools step → Select Configured Tool → Add Selected → "Selected Tools 1").
+- Test chat: "current EUR→USD and EUR→EGP?" → agent replied **"1 EUR = 1.1467 USD"** (live tool data) and **"EGP is not available in the current data"** (Frankfurter has no EGP) — i.e. it **called the tool** AND **did not fabricate** the missing rate. This validates tool invocation + instruction adherence + anti-hallucination in one shot.
+- Deployed → Agent Hub shows it `published` with **1 tools**. ✅
+- ⚠️ **To confirm with Ahmed:** the "Select Configured Tool" picker modal is functionally correct (loads tools, selectable, "Add Selected" works) but did **not appear in my automated screenshots** — likely a screenshot-capture limitation of a high-z fixed overlay, possibly a real visibility glitch. Needs human confirmation that the picker is visible on screen.
+
 ## Pending areas (in order)
 - B. Chat page (finish) · C. Agent Hub management (Drafts, Select, edit/delete/duplicate)
 - D. Tools — create a tool + agent actually invokes it
