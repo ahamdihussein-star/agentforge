@@ -104,6 +104,18 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 - Agent without a knowledge base fabricates specifics. Real fix = attach a **Knowledge Base (RAG)** tool + stronger default guardrails. The KB tool type exists; to be exercised in the guardrails/RAG test phase.
 - `create_tool` only persists `api_config` when the create payload includes it (`type=='api'`); the wizard currently creates bare then saves config via PUT (which now works). Low priority.
 
+## ✅ RAG / Knowledge Base — WORKS (verified)
+- Created a KB tool "ACME Policy KB", added a text entry with fictional facts (returns 17 days, restocking 8%, laptop warranty 23 months — things the LLM cannot know). Entry embedded ("1 chunks · ready").
+- "Ask Knowledge Base" → answered **"restocking fee … is 8 percent … warranty … is 23 months"** with a **Sources used** section. So embedding + retrieval + grounded answer all work. (Answers Ahmed's "is RAG actually used?" → yes.)
+- ⚠️ 🟠 **KB wizard Sources step not persisted on create** (parallel to #7): text entered in the wizard's Sources step was lost — the KB was created with "0 documents". Adding it from the tool **detail page** (explicit "Add Entry" button) works. Same root cause family as the create-wizard not sending step data; fix wizCreate/KB-create to persist sources, OR the wizard Sources step needs an "Add Entry" before Next.
+
+## ✅ Verified live this session (post-deploy)
+- #7 tool API config persists on create (Base URL/Endpoint saved). ✅
+- Tool picker now visible in the agent wizard (z-index fix). ✅
+- Escape closes the picker, then the wizard (with discard confirm). ✅
+- alert()→toast confirmed (validation shows in-page toasts, not browser popups). ✅
+- Auth survives restarts/redeploys (session held across multiple deploys). ✅
+
 ## Pending areas (in order)
 - B. Chat page (finish) · C. Agent Hub management (Drafts, Select, edit/delete/duplicate)
 - D. Tools — create a tool + agent actually invokes it
