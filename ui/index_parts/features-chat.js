@@ -1381,12 +1381,12 @@
                 const data = await r.json();
                 if (data.status === 'success') {
                     currentSettings = settings;
-                    alert('✅ Settings saved successfully!');
+                    showToast('✅ Settings saved successfully!');
                 } else {
-                    alert('❌ Failed to save: ' + (data.message || 'Unknown error'));
+                    showToast('❌ Failed to save: ' + (data.message || 'Unknown error'));
                 }
             } catch (e) {
-                alert('❌ Error: ' + e.message);
+                showToast('❌ Error: ' + e.message);
             }
         }
         
@@ -2325,7 +2325,7 @@ function validateStep() {
     if (wizState.step === 1) {
         const name = document.getElementById('wiz-name').value.trim();
         if (!name) {
-            alert('Please enter a name');
+            showToast('Please enter a name');
             return false;
         }
     }
@@ -2335,14 +2335,14 @@ function validateStep() {
         if (wizState.type === 'website') {
             const url = document.getElementById('web-url').value.trim();
             if (!url) {
-                alert('Please enter a website URL');
+                showToast('Please enter a website URL');
                 return false;
             }
         }
         if (wizState.type === 'api') {
             const url = document.getElementById('api-url').value.trim();
             if (!url) {
-                alert('Please enter an API URL');
+                showToast('Please enter an API URL');
                 return false;
             }
         }
@@ -3129,7 +3129,7 @@ async function wizCreate() {
     
     // Validate required data
     if (!wizState.data.name) {
-        alert('Please enter a tool name');
+        showToast('Please enter a tool name');
         return;
     }
     
@@ -3141,7 +3141,7 @@ async function wizCreate() {
         const hasSendGridConfig = document.getElementById('sendgrid-api-key')?.value && document.getElementById('sendgrid-from-email')?.value;
         
         if (!hasOAuthConfig && !hasSendGridConfig) {
-            alert('Please connect an email provider first (Gmail, Outlook, or SendGrid)');
+            showToast('Please connect an email provider first (Gmail, Outlook, or SendGrid)');
             return;
         }
     }
@@ -3309,9 +3309,9 @@ async function wizCreate() {
         console.error(isEditing ? 'Error updating tool:' : 'Error creating tool:', e);
         editingToolId = null; // Reset on error too
         if (e.name === 'AbortError') {
-            alert('Request timed out. Please try again.');
+            showToast('Request timed out. Please try again.');
         } else {
-            alert((isEditing ? 'Error updating tool: ' : 'Error creating tool: ') + (e.message || 'Unknown error'));
+            showToast((isEditing ? 'Error updating tool: ' : 'Error creating tool: ') + (e.message || 'Unknown error'));
         }
     }
 }
@@ -3418,7 +3418,7 @@ function addWizTextEntry() {
     const content = document.getElementById('wiz-text-content')?.value?.trim();
     
     if (!title || !content) {
-        alert('Please enter both title and content');
+        showToast('Please enter both title and content');
         return;
     }
     
@@ -3569,7 +3569,7 @@ function importWizTableFile(event) {
                     }
                 }
             } catch (err) {
-                alert('Failed to parse file: ' + err.message);
+                showToast('Failed to parse file: ' + err.message);
             }
         };
         reader.readAsArrayBuffer(file);
@@ -3619,11 +3619,11 @@ function parseWizCSV(csvText) {
 function addWizTableEntry() {
     const tableName = document.getElementById('wiz-table-name')?.value?.trim();
     if (!tableName) {
-        alert('Please enter a table name');
+        showToast('Please enter a table name');
         return;
     }
     if (!wizState.tableData || wizState.tableData.headers.length === 0) {
-        alert('Please create a table first');
+        showToast('Please create a table first');
         return;
     }
     
@@ -4087,7 +4087,7 @@ async function generateToolCode() {
     const lang = document.getElementById('code-lang')?.value || 'python';
     
     if (!description) {
-        alert('Please provide a tool description');
+        showToast('Please provide a tool description');
         return;
     }
     
@@ -4108,14 +4108,14 @@ async function generateToolCode() {
             document.getElementById('code-generated').value = data.code;
             document.getElementById('generated-code-preview').classList.remove('hidden');
         } else {
-            alert('Failed to generate code: ' + (data.error || 'Unknown error'));
+            showToast('Failed to generate code: ' + (data.error || 'Unknown error'));
         }
         
         btn.disabled = false;
         btn.innerHTML = '<span>✨</span> Generate Code';
     } catch (e) {
         console.error('Code generation error:', e);
-        alert('Error generating code: ' + e.message);
+        showToast('Error generating code: ' + e.message);
     }
 }
 

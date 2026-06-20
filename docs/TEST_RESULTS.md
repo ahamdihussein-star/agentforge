@@ -71,6 +71,17 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 - Related note: `create_tool` only builds `api_config` when `request.type == 'api'`; the saved tool had empty config and relied on the (broken) PUT to populate it. With the PUT fixed, the flow works; worth confirming the create wizard sends `type:'api'` + `api_config` so config persists on creation too.
 - ✅ Tool CREATION itself works (`POST /api/tools` 200); ✅ tool `/test` endpoint runs (returned "API not configured" only because config wasn't saved).
 
+## ✅ Tool execution — CONFIRMED working (after APIConfig fix)
+- After fixing the `update_tool` typo, "Save Configuration" persists and the tool makes a **real live HTTP call** (Test Call returned `status:success, mode:live` with the actual upstream status code — 301 then 404 were just my wrong test URL/path; the platform executed correctly).
+- `updateApiConfig` (Save Config) also had two bugs now fixed: it sent **no auth header** (worked only via the global fetch shim) and **never checked `response.ok`** (it showed "✅ saved" even on a 500). Now adds `getAuthHeaders()` + checks status.
+- Minor: the tool's HTTP client does not follow 301 redirects (worth adding `follow_redirects=True`).
+
+## 🟠 UX — native `alert()` popups replaced with in-page toasts (Ahmed-requested)
+- Save/confirm actions used blocking browser `alert()` dialogs — bad UX and they freeze automation until "OK" is clicked.
+- Swept **123 `alert(` → `showToast(`** across 5 files: features-tools-wizard (62), features-demo-tools (25), agent-wizard (18), features-chat (17), app-core (1). All pass `node --check`.
+- Left `ui/shared/password-change-modal.js` untouched (its `window.alert` is an intentional fallback inside a custom alert wrapper).
+- Rule going forward: any blocking native dialog encountered = bug → replace with `showToast`.
+
 ## Pending areas (in order)
 - B. Chat page (finish) · C. Agent Hub management (Drafts, Select, edit/delete/duplicate)
 - D. Tools — create a tool + agent actually invokes it

@@ -1821,7 +1821,7 @@ const API='';
                     return true;
                 }
             } catch (_) { /* ignore */ }
-            alert(String(message || ''));
+            showToast(String(message || ''));
             return true;
         }
 

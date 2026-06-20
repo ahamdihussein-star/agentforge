@@ -2509,7 +2509,7 @@
             
             const goal = wizard.goal || wizard.originalGoal;
             if (!goal) {
-                alert('Please define an agent goal first');
+                showToast('Please define an agent goal first');
                 return;
             }
             
@@ -2583,7 +2583,7 @@
                 if (generatingEl) generatingEl.classList.add('hidden');
                 if (readyEl) readyEl.classList.remove('hidden');
                 
-                alert('Failed to generate demo. Please try again.');
+                showToast('Failed to generate demo. Please try again.');
             }
         }
         
@@ -2868,7 +2868,7 @@
         async function aiConfigureTools() {
             const goal = wizard.goal || wizard.originalGoal;
             if(!goal) {
-                alert('Please define an agent goal first (Step 1)');
+                showToast('Please define an agent goal first (Step 1)');
                 return;
             }
             
@@ -2900,7 +2900,7 @@
                         updateDemoSuggestions(data.demo_suggestions);
                     }
                     
-                    alert(`✅ AI recommended ${wizard.suggestedTools.length} tools for your agent!`);
+                    showToast(`✅ AI recommended ${wizard.suggestedTools.length} tools for your agent!`);
                 } else {
                     // Fallback to local
                     wizard.suggestedTools = getLocalToolRecommendations(goal);
@@ -3147,7 +3147,7 @@
         function copyDockerCommand() {
             const code = document.querySelector('#onprem-docker pre code').textContent;
             navigator.clipboard.writeText(code);
-            alert('Docker command copied!');
+            showToast('Docker command copied!');
         }
         
         function downloadK8sManifest() {
@@ -3425,7 +3425,7 @@
                 renderKitDetails(kit);
             } catch (e) {
                 console.error('Failed to load kit details:', e);
-                alert('Failed to load kit details');
+                showToast('Failed to load kit details');
             }
         }
 
@@ -3562,7 +3562,7 @@
             const description = document.getElementById('new-kit-description').value.trim();
             
             if (!description) {
-                alert('Please describe what you need');
+                showToast('Please describe what you need');
                 return;
             }
             
@@ -3598,7 +3598,7 @@
                 
             } catch (e) {
                 console.error('Failed to generate kit:', e);
-                alert('Failed to generate demo kit: ' + e.message);
+                showToast('Failed to generate demo kit: ' + e.message);
                 document.getElementById('kit-generation-status').classList.add('hidden');
                 document.getElementById('generate-kit-btn').disabled = false;
             }
@@ -3616,7 +3616,7 @@
                 document.getElementById('demo-kit-details').classList.add('hidden');
                 await loadDemoKits();
             } catch (e) {
-                alert('Failed to delete kit');
+                showToast('Failed to delete kit');
             }
         }
 
@@ -3731,7 +3731,7 @@
             const method = document.getElementById('api-method')?.value || 'GET';
             const name = document.getElementById('wiz-name')?.value?.trim() || 'API';
             if (!baseUrl) {
-                alert('Please enter the Base URL first.');
+                showToast('Please enter the Base URL first.');
                 return;
             }
             apiTestFromWizard = true;
@@ -3814,7 +3814,7 @@
                 try {
                     body = JSON.parse(document.getElementById('api-test-body').value || '{}');
                 } catch (e) {
-                    alert('Invalid JSON in request body');
+                    showToast('Invalid JSON in request body');
                     return;
                 }
             }
@@ -4596,12 +4596,12 @@
                 if (!response.ok) throw new Error('Failed to generate');
                 
                 const result = await response.json();
-                alert('Asset generated! You can now download it.');
+                showToast('Asset generated! You can now download it.');
                 
                 // Refresh kit details
                 selectDemoKit(kitId);
             } catch (e) {
-                alert('Failed to generate asset file: ' + e.message);
+                showToast('Failed to generate asset file: ' + e.message);
             }
         }
         
@@ -4651,7 +4651,7 @@
                 closeEditAssetModal();
                 selectDemoKit(currentEditKitId);
             } catch (e) {
-                alert('Failed to save: ' + e.message);
+                showToast('Failed to save: ' + e.message);
             }
         }
 
@@ -4840,11 +4840,11 @@
                     loadDemoItems();
                     addDemoMessage('assistant', `✅ Updated "${name}" successfully!`);
                 } else {
-                    alert('Failed to save changes');
+                    showToast('Failed to save changes');
                 }
             } catch (e) {
                 console.error('Save error:', e);
-                alert('Error saving: ' + e.message);
+                showToast('Error saving: ' + e.message);
             }
         }
 
@@ -4861,11 +4861,11 @@
                     loadDemoItems();
                     addDemoMessage('assistant', '🗑️ Item deleted successfully.');
                 } else {
-                    alert('Failed to delete item');
+                    showToast('Failed to delete item');
                 }
             } catch (e) {
                 console.error('Delete error:', e);
-                alert('Error deleting: ' + e.message);
+                showToast('Error deleting: ' + e.message);
             }
         }
 

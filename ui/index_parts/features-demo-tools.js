@@ -1606,7 +1606,7 @@
             if (!hasValidId) {
                 // New agent - need personality
                 if (!wizard.personality) {
-                    alert('Agent personality not configured. Please generate configuration first.');
+                    showToast('Agent personality not configured. Please generate configuration first.');
                     return;
                 }
                 // New agent = full access
@@ -1685,18 +1685,18 @@
                         await saveAgentAccessControl(savedAgentId);
                     }
                     
-                    alert(status === 'published' ? '🚀 Agent Published!' : '💾 Saved as Draft!');
+                    showToast(status === 'published' ? '🚀 Agent Published!' : '💾 Saved as Draft!');
                     wizard.editId = null;
                     testAgent = null;
                     navigate('agents');
                     setAgentTab(status);
                 } else {
                     const err = await response.json();
-                    alert('Error: ' + (err.detail || 'Failed to save agent'));
+                    showToast('Error: ' + (err.detail || 'Failed to save agent'));
                 }
             } catch(e) {
                 console.error('Save error:', e);
-                alert('Error saving agent: ' + e.message);
+                showToast('Error saving agent: ' + e.message);
             }
         }
 
@@ -1711,7 +1711,7 @@
                 if(!r.ok) {
                     const errorText = await r.text();
                     console.error('Cleanup error:', errorText);
-                    alert('Error: ' + errorText);
+                    showToast('Error: ' + errorText);
                     return;
                 }
                 
@@ -1720,17 +1720,17 @@
                 
                 if(data.status === 'success') {
                     if(data.duplicates_removed > 0) {
-                        alert(`✅ Removed ${data.duplicates_removed} duplicate tools.\n\nRemaining tools: ${data.remaining_tools}`);
+                        showToast(`✅ Removed ${data.duplicates_removed} duplicate tools.\n\nRemaining tools: ${data.remaining_tools}`);
                     } else {
-                        alert('✅ No duplicates found. All tools have unique names.');
+                        showToast('✅ No duplicates found. All tools have unique names.');
                     }
                     loadTools(); // Refresh
                 } else {
-                    alert('Error: ' + (data.error || 'Failed to cleanup'));
+                    showToast('Error: ' + (data.error || 'Failed to cleanup'));
                 }
             } catch(e) {
                 console.error('Cleanup exception:', e);
-                alert('Failed to cleanup: ' + e.message);
+                showToast('Failed to cleanup: ' + e.message);
             }
         }
         
@@ -1743,13 +1743,13 @@
                 const data = await r.json();
                 
                 if(data.status === 'success') {
-                    alert(`✅ Deleted ${data.deleted_count} tools.`);
+                    showToast(`✅ Deleted ${data.deleted_count} tools.`);
                     loadTools();
                 } else {
-                    alert('Error: ' + (data.error || 'Failed to delete'));
+                    showToast('Error: ' + (data.error || 'Failed to delete'));
                 }
             } catch(e) {
-                alert('Failed to delete: ' + e.message);
+                showToast('Failed to delete: ' + e.message);
             }
         }
 
@@ -2339,7 +2339,7 @@
                 document.getElementById('kb-view-modal').classList.remove('hidden');
                 document.getElementById('kb-view-modal').classList.add('flex');
             } catch (e) {
-                alert('Failed to load content');
+                showToast('Failed to load content');
             }
         }
 
@@ -2369,7 +2369,7 @@
                 `;
                 document.body.appendChild(modal);
             } catch(e) {
-                alert('Failed to load document: ' + e.message);
+                showToast('Failed to load document: ' + e.message);
             }
         }
         
@@ -2411,7 +2411,7 @@
                 `;
                 document.body.appendChild(modal);
             } catch(e) {
-                alert('Failed to load document: ' + e.message);
+                showToast('Failed to load document: ' + e.message);
             }
         }
         
@@ -2422,7 +2422,7 @@
         
         async function saveTextEntry(toolId, docName) {
             const content = document.getElementById('text-entry-content')?.value;
-            if(!content) return alert('Content cannot be empty');
+            if(!content) return showToast('Content cannot be empty');
             
             try {
                 const r = await fetch(API+'/api/tools/'+toolId+'/demo-document', {
@@ -2433,14 +2433,14 @@
                 const data = await r.json();
                 
                 if(data.status === 'success') {
-                    alert('✅ Entry updated!');
+                    showToast('✅ Entry updated!');
                     document.getElementById('text-entry-modal')?.remove();
                     viewTool(toolId); // Refresh
                 } else {
-                    alert('Error: ' + (data.error || 'Failed to save'));
+                    showToast('Error: ' + (data.error || 'Failed to save'));
                 }
             } catch(e) {
-                alert('Failed to save: ' + e.message);
+                showToast('Failed to save: ' + e.message);
             }
         }
         
@@ -2461,10 +2461,10 @@
                 if(data.status === 'success') {
                     viewTool(toolId); // Refresh
                 } else {
-                    alert('Error: ' + (data.error || 'Failed to delete'));
+                    showToast('Error: ' + (data.error || 'Failed to delete'));
                 }
             } catch(e) {
-                alert('Failed to delete: ' + e.message);
+                showToast('Failed to delete: ' + e.message);
             }
         }
         
@@ -2515,7 +2515,7 @@
             const content = document.getElementById('new-text-entry-content')?.value?.trim();
             
             if(!title || !content) {
-                return alert('Please enter both title and content');
+                return showToast('Please enter both title and content');
             }
             
             try {
@@ -2527,14 +2527,14 @@
                 const data = await r.json();
                 
                 if(data.status === 'success') {
-                    alert('✅ Entry added!');
+                    showToast('✅ Entry added!');
                     document.getElementById('add-text-entry-modal')?.remove();
                     viewTool(toolId); // Refresh
                 } else {
-                    alert('Error: ' + (data.error || 'Failed to add'));
+                    showToast('Error: ' + (data.error || 'Failed to add'));
                 }
             } catch(e) {
-                alert('Failed to add: ' + e.message);
+                showToast('Failed to add: ' + e.message);
             }
         }
         
