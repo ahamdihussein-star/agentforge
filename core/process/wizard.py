@@ -66,7 +66,7 @@ PROCESS_PATTERNS = {
     "integration_sync": {
         "description": "Sync data between systems",
         "triggers": ["schedule", "event"],
-        "typical_nodes": ["start", "http_request", "loop", "transform", "http_request", "end"],
+        "typical_nodes": ["start", "http_request", "ai", "transform", "http_request", "end"],
     },
     "human_task": {
         "description": "Assign and track human tasks",
@@ -623,25 +623,9 @@ Node config rules:
     BEST PRACTICE: Whenever the process generates a document that should be sent to users,
     always include it in the notification's attachments array. This is especially important
     for reports (XLSX, PDF, DOCX) that users need to download.
-- parallel.config: Connect the parallel node to multiple next steps — the platform auto-builds branches from the edges.
-  - Optional: merge_strategy ("wait_all" = wait for all paths, "wait_any" = continue when any finishes). Default: "wait_all".
-  - Use parallel when the workflow needs to do multiple things at the same time.
-  - After the parallel paths complete, connect them back to a shared next node to continue the flow.
-  - CRITICAL: You MUST use a parallel node when:
-    * User says "parallel", "at the same time", or "simultaneously" for truly independent actions
-    * Multiple independent actions should run concurrently (e.g., two notifications, two approvals)
-  - Do NOT use a parallel node just to notify the approver — use the approval node's built-in notifyApprover feature instead.
-  - Example edges for parallel: parallel_node → branch1_node (edge1), parallel_node → branch2_node (edge2)
-  - LAYOUT: Place parallel branches side by side horizontally, each branch offset by ±300px from the parallel node's x position.
+- parallel: DO NOT USE — the parallel node is not executed by the engine yet. For "do multiple things at the same time" / "simultaneously", place those independent steps one after another in SEQUENCE instead (same outcome, different timing). Use the approval node's built-in notifyApprover for approver notifications.
 
-- call_process.config must include: processId (ID of the published process to invoke — MUST match an ID from the PUBLISHED PROCESSES list in the platform knowledge).
-  - Use when the workflow should run another existing published process as a sub-step.
-  - Use when the user explicitly mentions calling, running, or reusing another process by name.
-  - ALSO use when part of the workflow duplicates logic that an existing published process already handles — prefer composition over duplication.
-  - inputMapping: map current process data to the sub-process input fields. Keys = sub-process field names, values = {{currentProcessField}} references.
-  - Set output_variable to store the sub-process result for downstream steps.
-  - If no published processes are available (PUBLISHED PROCESSES list is empty), do NOT create call_process nodes.
-  - Example: call_process.config = {{ "processId": "<id>", "inputMapping": {{ "field1": "{{{{value1}}}}" }}, "outputVariable": "subResult" }}
+- call_process: DO NOT USE — the call_process (sub-process) node is not executed by the engine yet. Instead, INLINE the needed steps directly in this process rather than invoking another process as a sub-step.
 
 - AI NODE MODES (config.aiMode — determines what the AI step does):
   The "ai" node is the unified intelligence step. It supports these modes:
