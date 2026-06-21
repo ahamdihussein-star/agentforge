@@ -8774,7 +8774,8 @@ async def public_agent_chat(agent_id: str, request: _AFRequest):
         return _AFJSONResponse({"error": "This agent is not publicly available."}, status_code=403, headers=_af_cors())
     if not api_key or api_key != cfg.get("api_key"):
         return _AFJSONResponse({"error": "Invalid API key."}, status_code=401, headers=_af_cors())
-    if not message:
+    atts_in = (body or {}).get("attachments") or []
+    if not message and not atts_in:
         return _AFJSONResponse({"error": "message is required"}, status_code=400, headers=_af_cors())
 
     agent = app_state.agents.get(agent_id)
@@ -8790,6 +8791,32 @@ async def public_agent_chat(agent_id: str, request: _AFRequest):
     if not agent:
         return _AFJSONResponse({"error": "Agent not found"}, status_code=404, headers=_af_cors())
 
+    # Decode any uploaded files (base64 in JSON) to temp paths for extraction.
+    _tmp_paths = []
+    attachments = []
+    if atts_in:
+        import base64 as _b64, tempfile as _tf
+        for a in atts_in[:5]:
+            try:
+                fname = (a.get("name") or "file")[:120]
+                ftype = a.get("type") or ""
+                data = a.get("data") or ""
+                if isinstance(data, str) and data.startswith("data:") and "," in data:
+                    data = data.split(",", 1)[1]
+                raw = _b64.b64decode(data)
+                if len(raw) > 12 * 1024 * 1024:  # 12 MB cap per file
+                    continue
+                suffix = os.path.splitext(fname)[1] or ""
+                fd, path = _tf.mkstemp(suffix=suffix)
+                with os.fdopen(fd, "wb") as fh:
+                    fh.write(raw)
+                _tmp_paths.append(path)
+                attachments.append({"path": path, "name": fname, "type": ftype})
+            except Exception as _e:
+                print(f"[Public chat] attachment decode failed: {_e}")
+        if not message:
+            message = "Please review the attached file(s)."
+
     conv = app_state.conversations.get(conv_id) if conv_id else None
     if not conv:
         new_id = conv_id or ("pub-" + str(uuid.uuid4()))
@@ -8801,7 +8828,7 @@ async def public_agent_chat(agent_id: str, request: _AFRequest):
         app_state.conversations[new_id] = conv
 
     try:
-        result = await process_test_agent_chat(agent, message, conv)
+        result = await process_test_agent_chat(agent, message, conv, attachments=attachments or None)
         reply = result.get("content", "") if isinstance(result, dict) else str(result)
         sources = result.get("sources", []) if isinstance(result, dict) else []
         try:
@@ -8815,6 +8842,10 @@ async def public_agent_chat(agent_id: str, request: _AFRequest):
         print(f"[Public chat] error: {e}")
         import traceback; traceback.print_exc()
         return _AFJSONResponse({"error": "Agent failed to respond. Please try again."}, status_code=500, headers=_af_cors())
+    finally:
+        for _p in _tmp_paths:
+            try: os.remove(_p)
+            except Exception: pass
 
 
 from fastapi import BackgroundTasks as _AFBackgroundTasks
