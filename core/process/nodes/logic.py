@@ -263,7 +263,8 @@ class LoopNodeExecutor(BaseNodeExecutor):
         context: ProcessContext
     ) -> NodeResult:
         """Execute loop node - returns control info for engine to iterate"""
-        
+        return _step_not_available_yet(self.display_name)
+
         items_expr = self.get_config_value(node, 'items_expression', '[]')
         item_var = self.get_config_value(node, 'item_variable', 'item')
         index_var = self.get_config_value(node, 'index_variable', 'index')
@@ -551,6 +552,7 @@ class SubProcessNodeExecutor(BaseNodeExecutor):
         context: ProcessContext
     ) -> NodeResult:
         """Execute sub-process node — invoke child process"""
+        return _step_not_available_yet(self.display_name)
 
         process_id = self.get_config_value(node, 'process_id', '')
         input_mapping = self.get_config_value(node, 'input_mapping', {})
