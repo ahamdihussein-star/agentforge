@@ -140,13 +140,11 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 
 ## 🔴🔴 SEVERE BUG — admin permission-gated writes fail after restart ("Failed to create role")
 Tested Security → Roles → **+ Add Role**: the permission matrix UI is excellent (granular perms across User/Role/Security/AI/Tools/Chat/Audit/Demo/System). Filled "ZZ Test Viewer" + View Users + View Roles, clicked **Create Role → "Failed to create role"** error.
-Root-caused in code:
-- `create_role` (`api/security.py:2630`) gates on `check_permission(user, ROLES_CREATE)`.
-- `check_permission` → `PolicyEngine.has_permission` (`core/security/engine.py:609`) → `_get_user_permissions` (`:~620`) which resolves perms by iterating `user.role_ids` → **`self.state.roles.get(role_id)`** (the IN-MEMORY `security_state.roles`).
-- After a server restart, **`security_state.roles` is not reliably hydrated from the DB**, so the admin's role→permission lookup returns empty (no `system:admin`) → `has_permission` returns False → **403** → the UI shows "Failed to create role".
-- The Roles **list page still shows all roles** because `GET /roles` reads the **DB** directly — but `check_permission` reads the **in-memory** state. Classic split-brain (same class as the Departments split-brain in the analysis doc).
-**Impact:** ANY permission-gated admin write (create/edit role, and likely others) can **silently fail after a deploy/restart** until `security_state` is repopulated. This is one of the most important bugs found — it intermittently breaks admin actions on the very platform we're demoing.
-**Fix direction (careful, security-sensitive — recommend doing with Ahmed):** hydrate `security_state.roles`/`users`/`groups` from the DB on startup (and on the session-rehydration path), OR make `check_permission` fall back to a DB read when the role isn't in memory. Ties into Phase A "single source of truth".
+**Status: confirmed BUG (reproducible), exact cause NOT yet verified — do not overclaim.**
+Code path for create: `create_role` (`api/security.py:2628`) → permission gate `check_permission(user, ROLES_CREATE)` (`:2630`) → duplicate-name check (`:2636`) → `Role(...)` build → `RoleService.save_role` (DB save is wrapped in try/except and falls back to disk, so a DB error would NOT fail the request).
+What I verified (so my earlier "roles not hydrated" guess is only a hypothesis): roles ARE loaded from DB on startup via `security_state.load_from_disk()` (`core/security/state.py:281`), and `get_current_user` (`api/security.py:384`) returns the FULL user (from `security_state.users` or a DB fallback) WITH `role_ids`. So a simple "empty permissions" explanation is not confirmed.
+Remaining candidate causes (need the actual HTTP response / a Railway log line to pin down): (a) 403 because the Super-Admin role in *this worker's* `security_state.roles` is missing `roles:create`/`system:admin`; (b) 422 request-validation on `CreateRoleRequest` (frontend payload shape); (c) an exception before the DB save. 
+**Action for Ahmed:** when you can, grab the Network response for the failed `POST …/roles` (status + body) or the server log line — that will identify it in one shot (same approach that nailed the APIConfig bug). **Impact is potentially high** (a permission-gated admin write failing), so worth confirming. Likely related to the security_state↔DB split-brain documented in the analysis.
 
 ## 🔴 KEY FINDING — Settings LLM keys are stale/invalid; runtime uses ENV keys (reframes the "Gemini" issue)
 Tested the LLM Providers "Test Connection" action live (it makes a REAL call — works):
