@@ -1656,7 +1656,8 @@
                 const x2 = (toRect.left + toRect.width / 2 - canvasRect.left) / state.zoom;
                 const y2 = (toRect.top + toRect.height / 2 - canvasRect.top) / state.zoom;
                 
-                const pathInfo = getConnectionPathData(x1, y1, x2, y2, fromSide, toSide, conn, fromNode, toNode, canvasRect);
+                const pathInfo = tryDagreWaypointPath(conn, x1, y1, x2, y2, fromNode, toNode, canvasRect)
+                    || getConnectionPathData(x1, y1, x2, y2, fromSide, toSide, conn, fromNode, toNode, canvasRect);
                 const pathD = pathInfo.pathD;
                 const midX = pathInfo.bendX;
                 const midY = pathInfo.bendY;
@@ -2363,6 +2364,29 @@
         /** مسار الربط الذكي والديناميكي
          * Rules: الخط لا يمر من داخل الـ shape؛ الانحناء يتناسب مع المسافة؛ تجنب القطاعات القصيرة جداً (kinks)
          * Paths recalculate on node move (renderConnections in makeDraggable mousemove) */
+        /** مسار الخط من نقاط dagre (يلفّ حوالين كل العقد). يرجع null لو مش متاح أو لو اتحرّكت عقدة. */
+        function tryDagreWaypointPath(conn, x1, y1, x2, y2, fromNode, toNode, canvasRect) {
+            try {
+                const wp = state._dagreWaypoints && state._dagreWaypoints[conn.from + '|' + conn.to];
+                const dcF = state._dagreNodeCenters && state._dagreNodeCenters[conn.from];
+                const dcT = state._dagreNodeCenters && state._dagreNodeCenters[conn.to];
+                if (!wp || wp.length < 3 || !dcF || !dcT) return null;
+                const rf = getNodeRectInCanvas(fromNode, canvasRect);
+                const rt = getNodeRectInCanvas(toNode, canvasRect);
+                if (!rf || !rt) return null;
+                const cfx = (rf.left + rf.right) / 2, cfy = (rf.top + rf.bottom) / 2;
+                const ctx = (rt.left + rt.right) / 2, cty = (rt.top + rt.bottom) / 2;
+                const ox = cfx - dcF.x, oy = cfy - dcF.y;
+                // Uniform-offset check: if the from/to offsets disagree, a node was
+                // dragged since layout — fall back to the live orthogonal router.
+                if (Math.abs((ctx - dcT.x) - ox) > 8 || Math.abs((cty - dcT.y) - oy) > 8) return null;
+                const mids = wp.slice(1, -1).map(p => ({ x: p.x + ox, y: p.y + oy }));
+                if (!mids.length) return null;
+                const pathD = `M ${x1} ${y1} ` + mids.map(m => `L ${m.x} ${m.y}`).join(' ') + ` L ${x2} ${y2}`;
+                const mid = mids[Math.floor(mids.length / 2)];
+                return { pathD, bendX: mid.x, bendY: mid.y, twoBend: true, straightLine: false, pathSource: 'dagre' };
+            } catch (_) { return null; }
+        }
         function getConnectionPathData(x1, y1, x2, y2, fromSide, toSide, conn, fromNode, toNode, canvasRect) {
             const placePad = 20;
             const checkPad = 0;
@@ -7364,10 +7388,19 @@
                         if (f && t && idset.has(f) && idset.has(t)) g.setEdge(f, t);
                     });
                     dagre.layout(g);
+                    // Capture dagre's node centres + per-edge waypoints. The renderer
+                    // uses the waypoints (which dagre routes clear of every node) so
+                    // edges never run through an unrelated shape. Stored in dagre's
+                    // own coordinate space; the renderer derives the (uniform) offset
+                    // to canvas space and drops the waypoints the moment a node is moved.
+                    const centers = {}, waypoints = {};
+                    g.nodes().forEach(id => { const gn = g.node(id); if (gn) centers[id] = { x: gn.x, y: gn.y }; });
+                    g.edges().forEach(e => { const ge = g.edge(e); if (ge && ge.points) waypoints[e.v + '|' + e.w] = ge.points.map(p => ({ x: p.x, y: p.y })); });
+                    try { state._dagreNodeCenters = centers; state._dagreWaypoints = waypoints; } catch (_) {}
                     const laid = nodes.map(n => {
                         const gn = g.node(String(n.id));
                         if (!gn) return { ...n };
-                        return { ...n, x: Math.round(gn.x / 20) * 20, y: Math.round(gn.y / 20) * 20 };
+                        return { ...n, x: gn.x, y: gn.y };
                     });
                     return { ...def, nodes: laid, edges: edges.map(e => ({ ...e })) };
                 }
