@@ -1033,8 +1033,9 @@
                     <div class="space-y-4">
                         <div>
                             <label class="text-sm text-gray-400 mb-1 block">API Key</label>
-                            <input type="password" id="edit-api-key" class="input-field w-full rounded-lg px-4 py-2" 
-                                   value="${providerData.api_key}" placeholder="Enter new API key...">
+                            <input type="password" id="edit-api-key" class="input-field w-full rounded-lg px-4 py-2"
+                                   value="" placeholder="Leave blank to keep current key (${(providerData.api_key||'').slice(-4) || 'set'})" autocomplete="off">
+                            <p class="text-[11px] text-gray-500 mt-1">Leave blank to keep the existing key. Only enter a value to replace it.</p>
                         </div>
                         ${providerData.api_base ? `
                         <div>
@@ -1109,18 +1110,18 @@
         }
         
         function saveEditedProvider(providerName) {
-            const apiKey = document.getElementById('edit-api-key').value;
+            const apiKey = (document.getElementById('edit-api-key').value || '').trim();
             const apiBase = document.getElementById('edit-api-base')?.value || '';
-            
-            if (!apiKey) {
-                showToast('Please enter an API key.', 'warning');
-                return;
-            }
-            
+
             // Update provider
             const idx = configuredLLMProviders.findIndex(p => p.provider === providerName);
             if (idx >= 0) {
-                configuredLLMProviders[idx].api_key = apiKey;
+                // Only overwrite the key when the user actually typed a NEW one.
+                // Blank or a masked placeholder ("***…") means "keep the stored key" —
+                // this prevents accidentally saving a mask or a mistyped key.
+                if (apiKey && !apiKey.startsWith('***')) {
+                    configuredLLMProviders[idx].api_key = apiKey;
+                }
                 if (apiBase) configuredLLMProviders[idx].api_base = apiBase;
             }
             
