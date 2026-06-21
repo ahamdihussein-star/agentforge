@@ -798,3 +798,41 @@ a:focus-visible {
     line-height: 1.3;
     word-break: break-word;
 }
+
+/* ====================================================================
+ * Selectable choice cards (wizard: agent type / build method, etc.)
+ * Theme-aware selected state: accent border + tint + corner check badge.
+ * Replaces hardcoded Tailwind colors + the "Selected/Click to select" text.
+ * ================================================================== */
+.af-choice {
+    position: relative;
+    background: var(--bg-card);
+    border: 2px solid var(--border-color);
+    border-radius: 16px;
+    transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.af-choice:hover {
+    border-color: color-mix(in srgb, var(--accent-primary) 55%, var(--border-color));
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+.af-choice.selected {
+    border-color: var(--accent-primary);
+    background: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-card));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 22%, transparent);
+}
+.af-choice-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,.25);
+    z-index: 2;
+}
+.af-choice.selected .af-choice-badge { display: flex; }
