@@ -1924,6 +1924,7 @@ const toolMeta = {
     erp: { icon: '🏢', name: 'ERP', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
     // AI Services
     websearch: { icon: '🔍', name: 'Web Search', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
+    create_document: { icon: '📝', name: 'Create Document', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
     imagegen: { icon: '🎨', name: 'Image Gen', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
     stt: { icon: '🎤', name: 'Speech to Text', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
     tts: { icon: '🔊', name: 'Text to Speech', hasConfig: true, hasSources: false, steps: ['Basics', 'Config', 'Access', 'Review'] },
@@ -2407,6 +2408,10 @@ function saveStepData() {
         if (wizState.type === 'websearch') {
             config.provider = document.getElementById('search-provider').value;
             config.api_key = document.getElementById('search-key').value;
+        }
+
+        if (wizState.type === 'create_document') {
+            config.default_format = document.getElementById('doc-default-format')?.value || 'docx';
         }
         
         if (wizState.type === 'email') {

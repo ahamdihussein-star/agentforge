@@ -4830,6 +4830,22 @@ Example: I need an HR agent that can:
                     </div>
                 </div>
 
+                <!-- Create Document Config -->
+                <div id="cfg-create_document" class="hidden space-y-4">
+                    <div class="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-sm text-purple-300">
+                        📝 The agent will generate a downloadable Word / Excel / PowerPoint file from its own content. No external account or key is needed.
+                    </div>
+                    <div>
+                        <label class="text-sm text-gray-400 mb-1 block">Default format</label>
+                        <select id="doc-default-format" class="input-field w-full rounded-lg px-4 py-2">
+                            <option value="docx">Word (.docx)</option>
+                            <option value="xlsx">Excel (.xlsx)</option>
+                            <option value="pptx">PowerPoint (.pptx)</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Used only if the agent doesn't specify a format when calling the tool.</p>
+                    </div>
+                </div>
+
                 <!-- Code Exec Config -->
                 <div id="cfg-code" class="hidden space-y-4">
                     <div>
@@ -7216,7 +7232,7 @@ Option 3"></textarea>
     <script src="/ui/index_parts/agent-wizard.js?v=20260621m" defer></script>
     <script src="/ui/index_parts/features-demo-tools.js?v=20260621m" defer></script>
     <script src="/ui/index_parts/features-tools-wizard.js?v=20260621m" defer></script>
-    <script src="/ui/index_parts/features-chat.js?v=20260621n" defer></script>
+    <script src="/ui/index_parts/features-chat.js?v=20260621p" defer></script>
     <script src="/ui/index_parts/features-auth-permissions.js?v=20260621m" defer></script>
     <script src="/ui/index_parts/features-security-identity.js?v=20260621m" defer></script>
     <script src="/ui/index_parts/features-email-settings.js?v=20260621m" defer></script>
