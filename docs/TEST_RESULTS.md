@@ -138,6 +138,14 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 - Published **Currency Assistant** (gpt-4o, 1 tool) in the end-user **Chat** view: asked for live rates and it **actually called its Exchange Rate tool** → returned real, internally-consistent data (1 EUR = 1.1467 USD, and 1 USD = 0.8719 EUR ≈ 1/1.1467). It also did **not hallucinate** an EGP rate ("not available in the current data"). Tool use + instruction adherence + anti-fabrication all ✅.
 - **Important implication for the KB gap:** since the LLM clearly DOES call API tools, the agent-not-using-its-KB problem is **not** a general "LLM won't call tools" issue — it's specific to the **knowledge tool** path. Most likely the KB either (a) didn't actually attach/persist on the ACME agent, or (b) the agent's KB search queries a different collection/tool_id than where content was embedded. This narrows what to check (and pairs with the "KB wizard sources not persisted" bug family). Still benefits from one Railway log line to confirm which.
 
+## 🔴 KEY FINDING — Settings LLM keys are stale/invalid; runtime uses ENV keys (reframes the "Gemini" issue)
+Tested the LLM Providers "Test Connection" action live (it makes a REAL call — works):
+- **Google** test → `400 "API key not valid"`.
+- **OpenAI** test → `401 "Incorrect API key provided: ***XasA / invalid_api_key"`.
+- BUT OpenAI-based **agents work** at runtime (verified live: Currency agent returned real rates; gpt-4o chat works).
+⇒ Conclusion: **the runtime uses environment-variable API keys (e.g. `OPENAI_API_KEY`), NOT the keys stored/shown in Settings → LLM Providers**, which are stale/placeholder. The "Test Connection" button tests the *Settings-stored* key, so it reports failure even for providers that actually work.
+This **reframes the Gemini problem**: OpenAI works because a valid `OPENAI_API_KEY` env var exists; Gemini fails because there's no valid Google key in env, so it falls back to the (invalid) Settings key. **Fix options for Ahmed:** (a) set a valid `GOOGLE_API_KEY`/Gemini env var on Railway, or (b) just remove/avoid Gemini and rely on the OpenAI default. Also worth fixing the **inconsistency itself** (Settings keys vs env keys diverge; the UI shows keys that aren't what's used) — part of the broader "config source of truth" cleanup.
+
 ## ✅ Lab (Test Data Generator) works; AgentForge Studio = Create
 - **Lab** (`/lab`): API / Document / Image generators. Generated an "Employee Directory API" → ✅ "API generated successfully", added to Recent Creations. (Earlier /lab 502s were transient redeploy windows from my own doc commits — `web_fetch` returned the full page; not a real bug.)
 - 🟠 Minor (recurring): Recent Creations shows a just-created item as **"3h ago"** — the same `formatTimeAgo` UTC/timezone bug seen elsewhere; new items should read "just now".
