@@ -1079,58 +1079,108 @@ RULES:
         wb.save(filepath)
         return os.path.getsize(filepath)
     
+    @staticmethod
+    def _pptx_runs(paragraph, text):
+        for tok in re.split(r'(\*\*.+?\*\*|\*.+?\*|`.+?`)', text or ''):
+            if not tok:
+                continue
+            run = paragraph.add_run()
+            if tok.startswith('**') and tok.endswith('**'):
+                run.text = tok[2:-2]; run.font.bold = True
+            elif tok.startswith('*') and tok.endswith('*'):
+                run.text = tok[1:-1]; run.font.italic = True
+            elif tok.startswith('`') and tok.endswith('`'):
+                run.text = tok[1:-1]
+            else:
+                run.text = tok
+
+    @classmethod
+    def _pptx_table_slide(cls, prs, title, header, rows):
+        try:
+            slide = prs.slides.add_slide(prs.slide_layouts[5])
+        except Exception:
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+        try:
+            if slide.shapes.title:
+                slide.shapes.title.text = cls._md_strip(title) or 'Details'
+        except Exception:
+            pass
+        ncols = max(len(header), max((len(r) for r in rows), default=1)) or 1
+        nrows = 1 + len(rows)
+        left = PptxInches(0.5); top = PptxInches(1.6)
+        width = PptxInches(9); height = PptxInches(min(0.4 * nrows + 0.3, 5))
+        tbl = slide.shapes.add_table(nrows, ncols, left, top, width, height).table
+        for c in range(ncols):
+            tbl.cell(0, c).text = cls._md_strip(header[c]) if c < len(header) else ''
+        for ri, r in enumerate(rows, start=1):
+            for c in range(ncols):
+                tbl.cell(ri, c).text = cls._md_strip(r[c]) if c < len(r) else ''
+        return tbl
+
     @classmethod
     def _create_pptx(cls, filepath: str, title: str, content: str) -> int:
-        """Create a PowerPoint presentation"""
+        """Create a PowerPoint from markdown (native tables + bold bullets)."""
         prs = Presentation()
-        
-        # Title slide
-        title_slide_layout = prs.slide_layouts[0]
-        slide = prs.slides.add_slide(title_slide_layout)
+
+        slide = prs.slides.add_slide(prs.slide_layouts[0])
         slide.shapes.title.text = title
-        slide.placeholders[1].text = datetime.utcnow().strftime("%B %Y")
-        
-        # Content slides
-        bullet_slide_layout = prs.slide_layouts[1]
-        current_slide = None
-        current_points = []
-        
-        for line in content.split('\n'):
-            line = line.strip()
+        try:
+            slide.placeholders[1].text = datetime.utcnow().strftime("%B %Y")
+        except Exception:
+            pass
+
+        bullet_layout = prs.slide_layouts[1]
+        state = {'slide': None, 'points': []}
+
+        def flush():
+            if state['slide'] and state['points']:
+                tf = state['slide'].shapes.placeholders[1].text_frame
+                tf.clear()
+                for idx, point in enumerate(state['points']):
+                    p = tf.paragraphs[0] if idx == 0 else tf.add_paragraph()
+                    cls._pptx_runs(p, point)
+            state['points'] = []
+
+        def ensure_slide():
+            if not state['slide']:
+                state['slide'] = prs.slides.add_slide(bullet_layout)
+                state['slide'].shapes.title.text = title
+
+        lines = content.split('\n')
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
             if not line:
+                i += 1
                 continue
-            
+            if line.startswith('|') and i + 1 < len(lines) and cls._is_md_table_sep(lines[i + 1]):
+                flush()
+                header = cls._md_table_cells(line)
+                body = []
+                j = i + 2
+                while j < len(lines) and lines[j].strip().startswith('|'):
+                    body.append(cls._md_table_cells(lines[j]))
+                    j += 1
+                ttl = state['slide'].shapes.title.text if state['slide'] else title
+                cls._pptx_table_slide(prs, ttl, header, body)
+                i = j
+                continue
             if line.startswith('# ') or line.startswith('## '):
-                # New slide
-                if current_slide and current_points:
-                    body = current_slide.shapes.placeholders[1]
-                    tf = body.text_frame
-                    for i, point in enumerate(current_points):
-                        if i == 0:
-                            tf.paragraphs[0].text = point
-                        else:
-                            p = tf.add_paragraph()
-                            p.text = point
-                
-                current_slide = prs.slides.add_slide(bullet_slide_layout)
-                current_slide.shapes.title.text = line.lstrip('#').strip()
-                current_points = []
+                flush()
+                state['slide'] = prs.slides.add_slide(bullet_layout)
+                state['slide'].shapes.title.text = cls._md_strip(line.lstrip('#').strip())
+            elif line.startswith('### '):
+                ensure_slide()
+                state['points'].append(cls._md_strip(line[4:]))
             elif line.startswith('- ') or line.startswith('* '):
-                current_points.append(line[2:])
-            elif current_slide:
-                current_points.append(line)
-        
-        # Last slide content
-        if current_slide and current_points:
-            body = current_slide.shapes.placeholders[1]
-            tf = body.text_frame
-            for i, point in enumerate(current_points):
-                if i == 0:
-                    tf.paragraphs[0].text = point
-                else:
-                    p = tf.add_paragraph()
-                    p.text = point
-        
+                ensure_slide()
+                state['points'].append(line[2:])
+            else:
+                ensure_slide()
+                state['points'].append(line)
+            i += 1
+
+        flush()
         prs.save(filepath)
         return os.path.getsize(filepath)
     
