@@ -64,13 +64,13 @@
         <div class="toolbar-actions">
             <span class="toolbar-label">Flow:</span>
             <button type="button" class="toolbar-btn btn-secondary flow-btn" id="flow-vertical" title="Vertical: من أعلى لأسفل (Top → Bottom)" onclick="setFlowDirection('vertical')">
-                <span>↕</span> Vertical
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M12 3v18"/><path d="m8 7 4-4 4 4"/><path d="m8 17 4 4 4-4"/></svg> Vertical
             </button>
             <button type="button" class="toolbar-btn btn-secondary flow-btn" id="flow-horizontal" title="Horizontal: من يسار ليمين (Left → Right)" onclick="setFlowDirection('horizontal')">
-                <span>↔</span> Horizontal
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M3 12h18"/><path d="m7 8-4 4 4 4"/><path d="m17 8 4 4-4 4"/></svg> Horizontal
             </button>
             <button type="button" class="toolbar-btn btn-secondary" title="Arrange process in best alignment" onclick="alignProcess()">
-                <span>⊟</span> Align
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M12 3v18"/><rect width="14" height="6" x="5" y="5" rx="1"/><rect width="10" height="6" x="7" y="13" rx="1"/></svg> Align
             </button>
             <span class="toolbar-label" style="margin-left:8px;">Labels:</span>
             <button type="button" class="toolbar-btn btn-secondary" title="Smaller label font" onclick="setLabelFontSize(-1)">
@@ -81,22 +81,22 @@
             </button>
             <span id="label-font-size-display" style="font-size:11px;color:var(--pb-muted);min-width:2.5em;">11px</span>
             <button class="toolbar-btn btn-secondary" title="Undo (Ctrl+Z)" onclick="undoAction()">
-                <span>↶</span> Undo
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg> Undo
             </button>
             <button class="toolbar-btn btn-secondary" title="Redo (Ctrl+Shift+Z)" onclick="redoAction()">
-                <span>↷</span> Redo
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg> Redo
             </button>
             <button class="toolbar-btn btn-secondary" onclick="testWorkflow()">
-                <span>▶</span> Test
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><polygon points="6 3 20 12 6 21 6 3"/></svg> Test
             </button>
             <button class="toolbar-btn btn-secondary" onclick="saveWorkflowAsTemplate()">
-                <span>📚</span> Save as Template
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><rect width="18" height="7" x="3" y="3" rx="1"/><rect width="9" height="7" x="3" y="14" rx="1"/><rect width="5" height="7" x="16" y="14" rx="1"/></svg> Save as Template
             </button>
             <button class="toolbar-btn btn-primary" onclick="saveWorkflow()">
-                <span>💾</span> Save
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg> Save
             </button>
             <button class="toolbar-btn btn-success" onclick="publishWorkflow()">
-                <span>🚀</span> Publish
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Publish
             </button>
         </div>
     </div>
