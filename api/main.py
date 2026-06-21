@@ -552,6 +552,68 @@ class OpenAICompatibleLLM(BaseLLMProvider):
         return provider_config.get("models", [self.config.model])
 
 
+# ---------------------------------------------------------------------------
+# Generic, self-healing model resolution for Google (Gemini).
+# Providers retire model versions often; instead of hard-coding a version we
+# discover the currently-available models via the ListModels API (cached) and
+# pick the best match, then retry once on a 404 "model not found".
+# ---------------------------------------------------------------------------
+_GOOGLE_MODELS_CACHE = {"ts": 0.0, "models": []}
+
+async def _google_list_models(api_key: str, force: bool = False) -> list:
+    import time
+    now = time.time()
+    if not force and _GOOGLE_MODELS_CACHE["models"] and (now - _GOOGLE_MODELS_CACHE["ts"] < 3600):
+        return _GOOGLE_MODELS_CACHE["models"]
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                "https://generativelanguage.googleapis.com/v1beta/models",
+                params={"key": api_key, "pageSize": 1000}, timeout=15.0,
+            )
+        if r.status_code == 200:
+            names = []
+            for m in r.json().get("models", []):
+                if "generateContent" in (m.get("supportedGenerationMethods") or []):
+                    nm = (m.get("name") or "").replace("models/", "")
+                    if nm:
+                        names.append(nm)
+            if names:
+                _GOOGLE_MODELS_CACHE["models"] = names
+                _GOOGLE_MODELS_CACHE["ts"] = now
+                return names
+    except Exception as e:
+        print(f"[GoogleLLM] ListModels failed: {e}")
+    return _GOOGLE_MODELS_CACHE["models"]
+
+def _google_pick_model(available: list, requested: str) -> str:
+    if not available:
+        return requested or "gemini-flash-latest"
+    if requested and requested in available:
+        return requested
+    import re as _re
+    req = (requested or "").lower()
+    want_pro = "pro" in req
+    want_lite = "lite" in req
+    def score(name: str) -> float:
+        n = name.lower(); s = 0.0
+        s += 100 if (("pro" in n) if want_pro else ("flash" in n)) else 0
+        s += 30 if (want_lite and "lite" in n) else (10 if (not want_lite and "lite" not in n) else 0)
+        if "preview" not in n and "exp" not in n: s += 20
+        if n.endswith("-latest"): s += 8
+        mm = _re.search(r"(\d+(?:\.\d+)?)", n)
+        if mm:
+            try: s += float(mm.group(1))
+            except Exception: pass
+        return s
+    pool = [m for m in available if ("flash" in m.lower() or "pro" in m.lower())] or available
+    return sorted(pool, key=score, reverse=True)[0]
+
+async def _google_resolve_model(api_key: str, requested: str, force: bool = False) -> str:
+    avail = await _google_list_models(api_key, force=force)
+    return _google_pick_model(avail, requested)
+
+
 class GoogleLLM(BaseLLMProvider):
     """Google Gemini LLM provider - uses REST API for async compatibility"""
     def __init__(self, config: LLMConfig):
@@ -588,17 +650,11 @@ class GoogleLLM(BaseLLMProvider):
         if not contents:
             contents = [{"role": "user", "parts": [{"text": "Hello"}]}]
         
-        # Prefer explicit model passed by caller, then config default.
-        model_name = kwargs.get("model") or self.config.model or "gemini-2.5-flash"
-        # Map deprecated/legacy names to working equivalents.
-        model_mapping = {
-            "gemini-pro": "gemini-2.5-flash",
-            "gemini-2.5-flash": "gemini-2.5-flash",  # 1.5-flash deprecated on v1, use 2.0
-            "gemini-2.5-pro": "gemini-2.5-flash",    # 1.5-pro deprecated on v1, use 2.0
-        }
-        api_model = model_mapping.get(model_name, model_name)
-        print(f"[GoogleLLM] Using API model: {api_model}")
-        # Use v1beta — supports all models including legacy 1.5 and current 2.0
+        # Resolve to a currently-available model (self-healing, no hard-coded version).
+        requested_model = kwargs.get("model") or self.config.model or "gemini-flash-latest"
+        api_model = await _google_resolve_model(self.api_key, requested_model)
+        model_name = api_model
+        print(f"[GoogleLLM] Resolved model: {requested_model} -> {api_model}")
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{api_model}:generateContent"
         
         payload = {
@@ -619,6 +675,15 @@ class GoogleLLM(BaseLLMProvider):
                     timeout=60.0
                 )
                 
+                if response.status_code == 404:
+                    _new = await _google_resolve_model(self.api_key, requested_model, force=True)
+                    if _new and _new != api_model:
+                        print(f"[GoogleLLM] 404 on {api_model}; retrying with {_new}")
+                        response = await client.post(
+                            f"https://generativelanguage.googleapis.com/v1beta/models/{_new}:generateContent",
+                            params={"key": self.api_key}, json=payload, timeout=60.0,
+                        )
+
                 if response.status_code != 200:
                     error_text = response.text
                     print(f"[GoogleLLM] ❌ API error {response.status_code}: {error_text[:200]}")
@@ -3446,17 +3511,8 @@ async def call_llm_with_tools(messages: List[Dict], tools: List[Dict], model_id:
             if not provider_data or not provider_data.api_key:
                 return {"content": "Error: Google API key not configured", "tool_calls": []}
             
-            # Map model name to actual API model (gemini-2.5-flash is the current reliable model)
-            # Google API requires specific model names
-            model_mapping = {
-                "gemini-pro": "gemini-2.5-flash",
-                "gemini-2.5-flash": "gemini-2.5-flash",
-                "gemini-2.5-pro": "gemini-2.5-flash",
-                "gemini-2.5-flash": "gemini-2.5-flash",
-                "gemini-flash": "gemini-2.5-flash"
-            }
-            api_model = model_mapping.get(model_lower, "gemini-2.5-flash")
-            print(f"   📍 Mapped model {model_lower} -> {api_model} (for function calling)")
+            api_model = await _google_resolve_model(provider_data.api_key, model_lower or "gemini-flash-latest")
+            print(f"   📍 Resolved model {model_lower} -> {api_model} (for function calling)")
             
             print(f"   🔧 Gemini function calling with model: {api_model}")
             
@@ -3506,6 +3562,16 @@ async def call_llm_with_tools(messages: List[Dict], tools: List[Dict], model_id:
                     json=request_body
                 )
                 
+                if response.status_code == 404:
+                    _new = await _google_resolve_model(provider_data.api_key, model_lower or "gemini-flash-latest", force=True)
+                    if _new and _new != api_model:
+                        print(f"   🔁 404 on {api_model}; retrying with {_new}")
+                        api_model = _new
+                        response = await client.post(
+                            f"https://generativelanguage.googleapis.com/v1beta/models/{_new}:generateContent?key={provider_data.api_key}",
+                            headers={"Content-Type": "application/json"}, json=request_body,
+                        )
+
                 if response.status_code != 200:
                     error = response.text
                     print(f"   ❌ Gemini error: {error}")
