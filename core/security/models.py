@@ -317,7 +317,7 @@ class Organization(BaseModel):
 
 class Department(BaseModel):
     """Department within an organization"""
-    id: str = Field(default_factory=lambda: f"dept_{uuid.uuid4().hex[:12]}")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))  # Proper UUID — the DB departments.id is a UUID column, so non-UUID ids (old "dept_xxx") failed to persist
     org_id: str
     name: str
     description: Optional[str] = None
