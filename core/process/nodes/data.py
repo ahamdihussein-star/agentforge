@@ -19,6 +19,25 @@ from ..result import NodeResult, ExecutionError, ErrorCategory
 from .base import BaseNodeExecutor, register_executor
 
 
+def _coerce_number(v):
+    """Best-effort convert a value to float for sum/avg. Strips currency symbols, commas,
+    spaces, etc. (so real-world data like '1,200 AED' becomes 1200.0). Returns None when the
+    value has no numeric content, so non-numeric entries are skipped instead of crashing the step."""
+    if v is None:
+        return None
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    try:
+        cleaned = re.sub(r'[^0-9.\-]', '', str(v))
+        if cleaned in ('', '-', '.', '-.', '--'):
+            return None
+        return float(cleaned)
+    except (TypeError, ValueError):
+        return None
+
+
 @register_executor(NodeType.TRANSFORM)
 class TransformNodeExecutor(BaseNodeExecutor):
     """
@@ -661,12 +680,11 @@ class AggregateNodeExecutor(BaseNodeExecutor):
         if operation == 'count':
             result = len(values)
         elif operation == 'sum':
-            result = sum(float(v) for v in values if v is not None)
+            nums = [n for n in (_coerce_number(v) for v in values) if n is not None]
+            result = sum(nums)
         elif operation == 'avg':
-            if values:
-                result = sum(float(v) for v in values if v is not None) / len(values)
-            else:
-                result = 0
+            nums = [n for n in (_coerce_number(v) for v in values) if n is not None]
+            result = (sum(nums) / len(nums)) if nums else 0
         elif operation == 'min':
             result = min(values) if values else None
         elif operation == 'max':
