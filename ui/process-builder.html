@@ -81,16 +81,16 @@
             </button>
             <span id="label-font-size-display" style="font-size:11px;color:var(--pb-muted);min-width:2.5em;">11px</span>
             <button class="toolbar-btn btn-secondary" title="Undo (Ctrl+Z)" onclick="undoAction()">
-                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg> Undo
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
             </button>
             <button class="toolbar-btn btn-secondary" title="Redo (Ctrl+Shift+Z)" onclick="redoAction()">
-                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg> Redo
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
             </button>
             <button class="toolbar-btn btn-secondary" onclick="testWorkflow()">
                 <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><polygon points="6 3 20 12 6 21 6 3"/></svg> Test
             </button>
             <button class="toolbar-btn btn-secondary" onclick="saveWorkflowAsTemplate()">
-                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><rect width="18" height="7" x="3" y="3" rx="1"/><rect width="9" height="7" x="3" y="14" rx="1"/><rect width="5" height="7" x="16" y="14" rx="1"/></svg> Save as Template
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><rect width="18" height="7" x="3" y="3" rx="1"/><rect width="9" height="7" x="3" y="14" rx="1"/><rect width="5" height="7" x="16" y="14" rx="1"/></svg> Template
             </button>
             <button class="toolbar-btn btn-primary" onclick="saveWorkflow()">
                 <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg> Save
@@ -374,7 +374,7 @@
         <script src="/ui/dialogs.js?v=20260223c" defer></script>
         <script src="/ui/process-builder.js?v=20260621u" defer></script>
         <script src="/ui/icon-system.js?v=20260621e" defer></script>
-        <style id="af-builder-shell">#pb-portal-banner{display:none !important;} :root{--pb-banner-h:0px;} @media(min-width:768px){#node-palette{left:276px !important;} #build-overlay{left:calc(50% + 128px) !important;}}</style>
+        <style id="af-builder-shell">#pb-portal-banner{display:none !important;} :root{--pb-banner-h:0px;} @media(min-width:768px){#node-palette{left:276px !important;} #build-overlay{left:calc(50% + 128px) !important;}} #top-toolbar{overflow-x:auto;overflow-y:hidden;} #top-toolbar::-webkit-scrollbar{height:6px;} #top-toolbar .tb-ico{margin-right:4px;}</style>
         <script>window.__afActiveNav='create';</script>
         <script src="/ui/shared/app-sidebar.js?v=20260621a" defer></script>
 </body>
