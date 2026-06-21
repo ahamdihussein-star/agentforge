@@ -361,12 +361,26 @@ class ProcessAPIService:
         # can use dynamic assignees like {{ context.manager_id }}
         user_context = {}
         _identity_warnings = []
+        # TEST-MODE requester override: the builder "Test run" can cast a
+        # specific platform user as the requester. When present we enrich
+        # identity for THAT user, so _user_context (email, manager, department),
+        # "requester" notifications, manager fallbacks and person-field
+        # conditions all reflect the chosen person — without changing who owns
+        # the execution.
+        _enrich_user_id = user_id
+        try:
+            _tr_req = (trigger_input or {}).get('_test_requester_id') if isinstance(trigger_input, dict) else None
+            if _tr_req:
+                _enrich_user_id = str(_tr_req)
+                logger.info("[ProcessIdentity] TEST run: requester identity overridden to %s", _enrich_user_id[:8])
+        except Exception:
+            _enrich_user_id = user_id
         try:
             logger.info(
                 "[ProcessIdentity] Enriching context: user_id=%s, org_id=%s",
-                user_id, org_id
+                _enrich_user_id, org_id
             )
-            user_context = _user_directory.enrich_process_context(user_id, org_id)
+            user_context = _user_directory.enrich_process_context(_enrich_user_id, org_id)
             logger.info(
                 "[ProcessIdentity] Enriched context for user %s: keys=%s, email=%s, manager_email=%s",
                 user_id[:8] + "..." if user_id else "None",
@@ -403,7 +417,7 @@ class ProcessAPIService:
         if not user_context.get("display_name") and _auth_name:
             user_context["display_name"] = _auth_name
         if not user_context.get("user_id"):
-            user_context["user_id"] = user_id
+            user_context["user_id"] = _enrich_user_id
         # ── END FALLBACK ──────────────────────────────────────────
         
         # Validate the enriched context — report missing critical fields
