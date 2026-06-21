@@ -6768,7 +6768,8 @@ IMPORTANT:
         user_message = f"Generate a demo kit for this use case:\n\n{description}"
         
         # Call LLM
-        response_text = await generation_llm.generate(
+        response_text = await _generation_generate(
+            generation_llms,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message}
@@ -8275,10 +8276,35 @@ async def update_settings(request: Dict[str, Any]):
         # Update LLM Providers array (for multi-provider support)
         if 'llm_providers' in request:
             providers_data = request['llm_providers']
-            app_state.settings.llm_providers = [
-                LLMProviderConfig(**p) if isinstance(p, dict) else p
-                for p in providers_data
-            ]
+            # Preserve real API keys when the client sends a masked ("***…") or empty
+            # key. The Settings UI shows keys masked, so a normal save (e.g. changing the
+            # default model) would otherwise overwrite stored keys with the mask and break
+            # every provider. Match the existing provider by name first, then by type.
+            existing_by_name = {}
+            existing_by_type = {}
+            for ep in app_state.settings.llm_providers:
+                ptype = (getattr(ep, 'provider', '') or '').lower()
+                pname = (getattr(ep, 'name', '') or '').lower()
+                if pname:
+                    existing_by_name[(ptype, pname)] = ep
+                existing_by_type.setdefault(ptype, ep)
+
+            new_providers = []
+            for p in providers_data:
+                if isinstance(p, dict):
+                    pd = dict(p)
+                    key = str(pd.get('api_key') or '')
+                    if (not key) or key.startswith('***'):
+                        ptype = str(pd.get('provider') or '').lower()
+                        pname = str(pd.get('name') or '').lower()
+                        prev = existing_by_name.get((ptype, pname)) or existing_by_type.get(ptype)
+                        if prev and getattr(prev, 'api_key', None):
+                            pd['api_key'] = prev.api_key
+                            print(f"🔑 Preserved stored API key for provider: {pd.get('name') or ptype}")
+                    new_providers.append(LLMProviderConfig(**pd))
+                else:
+                    new_providers.append(p)
+            app_state.settings.llm_providers = new_providers
             print(f"✅ Saved {len(app_state.settings.llm_providers)} LLM providers")
         
         # Update Google settings
