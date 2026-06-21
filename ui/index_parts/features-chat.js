@@ -301,12 +301,28 @@
                 return match;
             });
             
+            // Generated documents: strip the LLM's bogus "sandbox:" scheme and linkify bare paths.
+            text = text.replace(/\]\(sandbox:(\/api\/tool-outputs\/)/g, ']($1');
+            text = text.replace(/(?<!\]\()(?:sandbox:)?(\/api\/tool-outputs\/[^\s)<>"']+\.(?:docx|xlsx|pptx))/gi,
+                (_m, url) => '[Download ' + decodeURIComponent(url.split('/').pop()) + '](' + url + ')');
+
             if(typeof marked!=='undefined'){
                 marked.setOptions({breaks:true,gfm:true});
                 let html = marked.parse(text);
                 // Wrap tables in responsive container
                 html = html.replace(/<table>/g, '<div class="table-container"><table>');
                 html = html.replace(/<\/table>/g, '</table></div>');
+                // Turn generated-document links into a clear download button.
+                html = html.replace(/<a\s+[^>]*href="(?:sandbox:)?(\/api\/tool-outputs\/[^"]+)"[^>]*>[\s\S]*?<\/a>/gi, (_m, url) => {
+                    const fname = decodeURIComponent((url.split('/').pop() || 'file'));
+                    const ext = (fname.split('.').pop() || '').toLowerCase();
+                    const icon = ext === 'xlsx' ? '📊' : (ext === 'pptx' ? '📑' : '📄');
+                    return '<a href="' + url + '" download target="_blank" rel="noopener" ' +
+                        'style="display:inline-flex;align-items:center;gap:8px;margin:6px 0;padding:8px 14px;' +
+                        'background:#f1ecfb;border:1px solid #d6c8f3;border-radius:10px;color:#5b34c9;' +
+                        'text-decoration:none;font-weight:600;font-size:14px;line-height:1.2;">' +
+                        '<span>' + icon + '</span><span>' + fname + '</span><span style="opacity:.6;">⬇</span></a>';
+                });
                 return html;
             }
             return esc(text).replace(/\n/g,'<br>');

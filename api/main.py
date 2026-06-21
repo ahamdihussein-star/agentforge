@@ -2695,8 +2695,51 @@ def build_tool_definitions(tools: List['ToolConfiguration']) -> List[Dict]:
     return tool_defs
 
 
+def _docx_add_runs(paragraph, line):
+    """Add text to a docx paragraph, honouring inline **bold**, *italic*, `code`."""
+    for part in re.split(r'(\*\*.+?\*\*|`.+?`|\*.+?\*)', line):
+        if not part:
+            continue
+        if len(part) >= 4 and part.startswith('**') and part.endswith('**'):
+            paragraph.add_run(part[2:-2]).bold = True
+        elif len(part) >= 2 and part.startswith('`') and part.endswith('`'):
+            r = paragraph.add_run(part[1:-1]); r.font.name = 'Consolas'
+        elif len(part) >= 2 and part.startswith('*') and part.endswith('*'):
+            paragraph.add_run(part[1:-1]).italic = True
+        else:
+            paragraph.add_run(part)
+
+
+def _shade_docx_cell(cell, hex_color):
+    """Fill a Word table cell with a background colour (python-docx has no API for this)."""
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+    tcPr = cell._tc.get_or_add_tcPr()
+    shd = OxmlElement('w:shd')
+    shd.set(qn('w:val'), 'clear')
+    shd.set(qn('w:color'), 'auto')
+    shd.set(qn('w:fill'), hex_color)
+    tcPr.append(shd)
+
+
+def _coerce_cell(v):
+    """Store numbers as real numbers so Excel can sum/sort them."""
+    s = str(v).strip()
+    if re.fullmatch(r'-?\d+', s):
+        try:
+            return int(s)
+        except Exception:
+            return s
+    if re.fullmatch(r'-?\d*\.\d+', s):
+        try:
+            return float(s)
+        except Exception:
+            return s
+    return s
+
+
 def _generate_document_file(fmt: str, title: str, content: str, rows=None):
-    """Generate a Word/Excel/PowerPoint file from agent-provided content.
+    """Generate a formatted Word/Excel/PowerPoint file from agent-provided content.
     Returns (filename, filepath). Uses python-docx / openpyxl / python-pptx."""
     fmt = (fmt or 'docx').lower().strip()
     if fmt in ('word', 'doc', 'document'):
@@ -2713,15 +2756,59 @@ def _generate_document_file(fmt: str, title: str, content: str, rows=None):
     fname = f"{safe_title[:40].replace(' ', '_')}_{uuid.uuid4().hex}.{fmt}"
     fpath = os.path.join(out_dir, fname)
     text = str(content or '')
+
     if fmt == 'docx':
         from docx import Document as _Docx
+        from docx.shared import Pt, RGBColor
         doc = _Docx()
+        normal = doc.styles['Normal']
+        normal.font.name = 'Calibri'
+        normal.font.size = Pt(11)
         if title:
-            doc.add_heading(title, level=0)
-        for para in text.split('\n'):
-            p = para.rstrip()
-            s = p.strip()
+            doc.add_heading(title, level=0)  # Word "Title" style
+        lines = text.split('\n')
+        i = 0
+        while i < len(lines):
+            raw = lines[i]
+            s = raw.strip()
             if not s:
+                i += 1
+                continue
+            # Markdown table: a row of pipes followed by a |---|--- separator.
+            if (s.startswith('|') and i + 1 < len(lines)
+                    and lines[i + 1].strip() and set(lines[i + 1].strip()) <= set('|-: ')):
+                block = []
+                while i < len(lines) and lines[i].strip().startswith('|'):
+                    block.append(lines[i].strip())
+                    i += 1
+                rows_cells = []
+                for tl in block:
+                    if tl and set(tl) <= set('|-: '):
+                        continue  # separator row
+                    rows_cells.append([c.strip() for c in tl.strip('|').split('|')])
+                if rows_cells:
+                    ncol = max(len(r) for r in rows_cells)
+                    table = doc.add_table(rows=0, cols=ncol)
+                    try:
+                        table.style = 'Table Grid'
+                    except Exception:
+                        pass
+                    for ri, rc in enumerate(rows_cells):
+                        cells = table.add_row().cells
+                        for ci in range(ncol):
+                            val = rc[ci] if ci < len(rc) else ''
+                            cell = cells[ci]
+                            p = cell.paragraphs[0]
+                            if ri == 0:
+                                # Coloured header: indigo fill, white bold text.
+                                run = p.add_run(val)
+                                run.bold = True
+                                run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+                                _shade_docx_cell(cell, '4F46E5')
+                            else:
+                                _docx_add_runs(p, val)
+                                if ri % 2 == 0:
+                                    _shade_docx_cell(cell, 'EEF0FB')  # subtle row banding
                 continue
             if s.startswith('### '):
                 doc.add_heading(s[4:].strip(), level=3)
@@ -2730,12 +2817,17 @@ def _generate_document_file(fmt: str, title: str, content: str, rows=None):
             elif s.startswith('# '):
                 doc.add_heading(s[2:].strip(), level=1)
             elif s.startswith(('- ', '* ')):
-                doc.add_paragraph(s[2:].strip(), style='List Bullet')
+                _docx_add_runs(doc.add_paragraph(style='List Bullet'), s[2:].strip())
+            elif re.match(r'^\d+\.\s', s):
+                _docx_add_runs(doc.add_paragraph(style='List Number'), re.sub(r'^\d+\.\s', '', s))
             else:
-                doc.add_paragraph(p)
+                _docx_add_runs(doc.add_paragraph(), raw.rstrip())
+            i += 1
         doc.save(fpath)
+
     elif fmt == 'xlsx':
         import openpyxl as _oxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
         wb = _oxl.Workbook()
         ws = wb.active
         ws.title = (title or 'Sheet')[:31]
@@ -2743,12 +2835,28 @@ def _generate_document_file(fmt: str, title: str, content: str, rows=None):
             (ln.split('\t') if '\t' in ln else ln.split(','))
             for ln in text.split('\n') if ln.strip()
         ]
-        for r in data_rows:
+        thin = Side(style='thin', color='D9D9D9')
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+        header_fill = PatternFill('solid', fgColor='4F46E5')
+        for ri, r in enumerate(data_rows):
             cells = r if isinstance(r, list) else [r]
-            ws.append([str(c).strip() for c in cells])
+            for ci, val in enumerate(cells):
+                cell = ws.cell(row=ri + 1, column=ci + 1, value=_coerce_cell(val))
+                cell.border = border
+                if ri == 0:
+                    cell.font = Font(bold=True, color='FFFFFF')
+                    cell.fill = header_fill
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+        for col_cells in ws.columns:
+            length = max((len(str(c.value)) for c in col_cells if c.value is not None), default=10)
+            ws.column_dimensions[col_cells[0].column_letter].width = min(max(length + 2, 10), 60)
+        if len(data_rows) > 1:
+            ws.freeze_panes = 'A2'
         wb.save(fpath)
+
     elif fmt == 'pptx':
         from pptx import Presentation as _Prs
+        from pptx.util import Pt
         prs = _Prs()
         ts = prs.slides.add_slide(prs.slide_layouts[0])
         try:
@@ -2771,14 +2879,16 @@ def _generate_document_file(fmt: str, title: str, content: str, rows=None):
                 tf.clear()
                 for i, ln in enumerate(bullets):
                     ln = ln.lstrip('-*').strip()
-                    if i == 0:
-                        tf.text = ln
-                    else:
-                        para = tf.add_paragraph()
-                        para.text = ln
+                    para = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                    para.text = ln
+                    try:
+                        para.font.size = Pt(18)
+                    except Exception:
+                        pass
             except Exception:
                 pass
         prs.save(fpath)
+
     else:
         fname = fname.rsplit('.', 1)[0] + '.txt'
         fpath = os.path.join(out_dir, fname)
