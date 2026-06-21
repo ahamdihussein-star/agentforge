@@ -159,6 +159,16 @@ Concrete end-to-end test Ahmed asked for — *prove approvals reach the right pe
 
 ---
 
+## 5b. Verification result (done 2026-06-20)
+
+**Manager routing now works end-to-end.** After adding the admin (`admin@agentforge.app`) to the Finance department with manager = Rania ElHadidi (via Org Chart → Edit Department → Add Person → reports-to), re-running the Employee Expense process with amount 800:
+- No more "no manager assigned" pre-flight error (it went straight to "Running real test").
+- AI Validate matched 800 vs the 800 receipt ("no discrepancies").
+- The Decision routed to the **manager** path (800 ≥ 500).
+- The **Manager Approval step paused as "Waiting for approval"** with the resolved **Manager ID `4852a347-…`** (admin's direct manager) + Department ID (Finance) + a live Approve/Reject gate.
+
+⇒ This confirms `dynamic_manager` resolution works once org placement exists — i.e. the recurring failure was **purely the seeding gap**, not the routing logic. Still to verify: `role`-based routing (the current test process has no role-assignee step) and clean post-approval completion (the "Record Outcome" step still points at the dead tool — separate issue). Minor UX bug observed: after "Approve & continue", the final report did not re-surface (playback paused at Validate).
+
 ## 6. Appendix — file index
 
 - Generation: `core/process/wizard.py`, `core/process/platform_knowledge.py`, `docs/PROCESS_BUILDER_KB_*.md`
