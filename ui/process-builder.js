@@ -1614,7 +1614,17 @@
             const svgInteractive = document.getElementById('connections-interactive-svg');
             svg.innerHTML = '';
             if (svgInteractive) svgInteractive.innerHTML = '';
-            
+
+            // Cache every node's rect once per render so the edge router can keep
+            // lines clear of ALL shapes (not just each edge's own endpoints)
+            // without re-measuring the DOM for every connection.
+            try {
+                const _crForRects = document.getElementById('canvas').getBoundingClientRect();
+                state._edgeNodeRects = [...document.querySelectorAll('.workflow-node')]
+                    .map(el => ({ el, rect: getNodeRectInCanvas(el, _crForRects) }))
+                    .filter(o => o.rect);
+            } catch (_) { state._edgeNodeRects = []; }
+
             const ns = 'http://www.w3.org/2000/svg';
             state.connections.forEach((conn, idx) => {
                 const fromNode = document.getElementById(conn.from);
@@ -1853,6 +1863,41 @@
                 return checkH(y1, x1, bx, false, true) || checkV(bx, y1, by, false, false) || checkH(by, bx, x2, false, false) || checkV(x2, by, y2, true, false);
             }
             return checkV(x1, y1, by, true, false) || checkH(by, x1, bx, false, false) || checkV(bx, by, y2, false, false) || checkH(y2, bx, x2, false, true);
+        }
+        /** قطع المسار المتعامد لنقطة انحناء معيّنة — مطابقة لهندسة getConnectionPathData */
+        function orthoSegsForBend(bx, by, x1, y1, x2, y2, fromH, toH) {
+            if (fromH && toH) return [
+                { h: true, fixed: y1, a: x1, b: bx },
+                { h: false, fixed: bx, a: y1, b: y2 },
+                { h: true, fixed: y2, a: bx, b: x2 },
+            ];
+            if (!fromH && !toH) return [
+                { h: false, fixed: x1, a: y1, b: by },
+                { h: true, fixed: by, a: x1, b: x2 },
+                { h: false, fixed: x2, a: by, b: y2 },
+            ];
+            if (fromH && !toH) return [
+                { h: true, fixed: y1, a: x1, b: bx },
+                { h: false, fixed: bx, a: y1, b: by },
+                { h: true, fixed: by, a: bx, b: x2 },
+                { h: false, fixed: x2, a: by, b: y2 },
+            ];
+            return [
+                { h: false, fixed: x1, a: y1, b: by },
+                { h: true, fixed: by, a: x1, b: bx },
+                { h: false, fixed: bx, a: by, b: y2 },
+                { h: true, fixed: y2, a: bx, b: x2 },
+            ];
+        }
+        /** هل أي قطعة من المسار تعبر أي مستطيل في القائمة (لتجنّب العقد غير الطرفية) */
+        function pathSegsCrossAnyRect(segs, rects, pad) {
+            for (const s of segs) {
+                for (const r of rects) {
+                    if (s.h) { if (horizontalSegmentCrossesRect(s.fixed, s.a, s.b, r, pad)) return true; }
+                    else { if (verticalSegmentCrossesRect(s.fixed, s.a, s.b, r, pad)) return true; }
+                }
+            }
+            return false;
         }
         /** هل قطعة الخط من (x1,y1) إلى (x2,y2) تمر عبر المستطيل (نقاط داخلية فقط) */
         function lineSegmentCrossesRect(x1, y1, x2, y2, r, pad) {
