@@ -273,6 +273,74 @@
             }
         }
 
+        // ============================================================================
+        // PROCESS AI AGENTS PAGE — dedicated run hub (mirrors Chat page for conversational)
+        // ============================================================================
+        let _processPageCache = [];
+
+        async function loadProcessAgents(){
+            const grid = document.getElementById('process-page-grid');
+            if (grid) grid.innerHTML = `<div class="col-span-full text-center py-16 text-gray-500">Loading…</div>`;
+            try {
+                const r = await fetch(API+'/api/agents?status=published', { headers: getAuthHeaders() });
+                const d = await r.json();
+                _processPageCache = (d.agents || []).filter(a => a.agent_type === 'process');
+            } catch(e) {
+                _processPageCache = [];
+                if (grid) grid.innerHTML = `<div class="col-span-full text-center py-16 text-red-400">Failed to load processes</div>`;
+                return;
+            }
+            renderProcessPage();
+        }
+
+        function renderProcessPage(){
+            const grid = document.getElementById('process-page-grid');
+            const countEl = document.getElementById('process-page-count');
+            if (!grid) return;
+            const q = (document.getElementById('process-page-search')?.value || '').toLowerCase().trim();
+            let list = _processPageCache;
+            if (q) list = list.filter(a => (a.name||'').toLowerCase().includes(q) || (a.goal||'').toLowerCase().includes(q));
+            if (countEl) countEl.textContent = list.length;
+
+            if (!list.length){
+                grid.innerHTML = `<div class="col-span-full text-center py-16 text-gray-500">
+                    <div class="text-5xl mb-3">🔄</div>
+                    <p class="mb-4">${q ? 'No processes match your search' : 'No published process agents yet'}</p>
+                    ${q ? '' : `<button onclick="navigate('create')" class="btn-primary px-4 py-2 rounded-lg" data-permission="agents:create">Create a Process Agent</button>`}
+                </div>`;
+                if (window.applyPermissions) try { applyPermissions(); } catch(e){}
+                return;
+            }
+
+            grid.innerHTML = list.map(a => `
+                <div class="card rounded-xl overflow-hidden transition-all hover:shadow-lg hover:shadow-green-500/10"
+                     style="background: linear-gradient(135deg, rgba(34,197,94,0.05), rgba(20,184,166,0.05)); border: 1px solid rgba(34,197,94,0.2);">
+                    <div class="p-4" style="background: linear-gradient(135deg, rgba(34,197,94,0.13), rgba(20,184,166,0.13));">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl shadow-lg">🔄</div>
+                            <div class="flex-1 min-w-0">
+                                <h3 class="font-semibold text-white af-clamp-2">${a.name}</h3>
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">Process</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <p class="text-sm text-gray-400 line-clamp-2 mb-4" style="min-height:2.6em;">${a.goal || ''}</p>
+                        <div class="flex items-center gap-4 text-xs text-gray-500 mb-4">
+                            <span>⚡ Automation</span>
+                            <span>🔧 ${a.tools_count || 0} tools</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="openProcessExecution('${a.id}')" class="flex-1 px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-sm font-semibold flex items-center justify-center gap-2" title="Run this process">▶️ Run</button>
+                            <button onclick="openAgentIntegration('${a.id}','process')" class="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm" title="API & Integration">🔌</button>
+                            <button onclick="editAgent('${a.id}')" data-permission="agents:edit" class="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm" title="Edit">✏️</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            if (window.applyPermissions) try { applyPermissions(); } catch(e){}
+        }
+
         async function openAgent(id, status, agentType = 'conversational'){
             try {
                 // For process/workflow agents, open the process execution UI

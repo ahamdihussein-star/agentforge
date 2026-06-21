@@ -513,6 +513,7 @@ const API='';
             // Page-specific initialization
             if(p==='dashboard') loadDashboardStats();
             if(p==='agents')loadAgents();
+            if(p==='processes')loadProcessAgents();
             if(p==='tools')loadTools();
             if(p==='chat') { if (!window._skipChatAgentLoad) loadChatAgents(); window._skipChatAgentLoad = false; }
             if(p==='create'){
