@@ -138,6 +138,16 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 - Published **Currency Assistant** (gpt-4o, 1 tool) in the end-user **Chat** view: asked for live rates and it **actually called its Exchange Rate tool** → returned real, internally-consistent data (1 EUR = 1.1467 USD, and 1 USD = 0.8719 EUR ≈ 1/1.1467). It also did **not hallucinate** an EGP rate ("not available in the current data"). Tool use + instruction adherence + anti-fabrication all ✅.
 - **Important implication for the KB gap:** since the LLM clearly DOES call API tools, the agent-not-using-its-KB problem is **not** a general "LLM won't call tools" issue — it's specific to the **knowledge tool** path. Most likely the KB either (a) didn't actually attach/persist on the ACME agent, or (b) the agent's KB search queries a different collection/tool_id than where content was embedded. This narrows what to check (and pairs with the "KB wizard sources not persisted" bug family). Still benefits from one Railway log line to confirm which.
 
+## 🔴🔴 SEVERE BUG — admin permission-gated writes fail after restart ("Failed to create role")
+Tested Security → Roles → **+ Add Role**: the permission matrix UI is excellent (granular perms across User/Role/Security/AI/Tools/Chat/Audit/Demo/System). Filled "ZZ Test Viewer" + View Users + View Roles, clicked **Create Role → "Failed to create role"** error.
+Root-caused in code:
+- `create_role` (`api/security.py:2630`) gates on `check_permission(user, ROLES_CREATE)`.
+- `check_permission` → `PolicyEngine.has_permission` (`core/security/engine.py:609`) → `_get_user_permissions` (`:~620`) which resolves perms by iterating `user.role_ids` → **`self.state.roles.get(role_id)`** (the IN-MEMORY `security_state.roles`).
+- After a server restart, **`security_state.roles` is not reliably hydrated from the DB**, so the admin's role→permission lookup returns empty (no `system:admin`) → `has_permission` returns False → **403** → the UI shows "Failed to create role".
+- The Roles **list page still shows all roles** because `GET /roles` reads the **DB** directly — but `check_permission` reads the **in-memory** state. Classic split-brain (same class as the Departments split-brain in the analysis doc).
+**Impact:** ANY permission-gated admin write (create/edit role, and likely others) can **silently fail after a deploy/restart** until `security_state` is repopulated. This is one of the most important bugs found — it intermittently breaks admin actions on the very platform we're demoing.
+**Fix direction (careful, security-sensitive — recommend doing with Ahmed):** hydrate `security_state.roles`/`users`/`groups` from the DB on startup (and on the session-rehydration path), OR make `check_permission` fall back to a DB read when the role isn't in memory. Ties into Phase A "single source of truth".
+
 ## 🔴 KEY FINDING — Settings LLM keys are stale/invalid; runtime uses ENV keys (reframes the "Gemini" issue)
 Tested the LLM Providers "Test Connection" action live (it makes a REAL call — works):
 - **Google** test → `400 "API key not valid"`.
