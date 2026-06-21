@@ -417,8 +417,6 @@ class ParallelNodeExecutor(BaseNodeExecutor):
         context: ProcessContext
     ) -> NodeResult:
         """Execute parallel node - returns branch info for engine"""
-        return _step_not_available_yet(self.display_name)
-
         branches = self.get_config_value(node, 'branches', [])
         merge_strategy = self.get_config_value(node, 'merge_strategy', 'wait_all')
         wait_count = self.get_config_value(node, 'wait_count')
