@@ -589,12 +589,12 @@ class GoogleLLM(BaseLLMProvider):
             contents = [{"role": "user", "parts": [{"text": "Hello"}]}]
         
         # Prefer explicit model passed by caller, then config default.
-        model_name = kwargs.get("model") or self.config.model or "gemini-2.0-flash"
+        model_name = kwargs.get("model") or self.config.model or "gemini-2.5-flash"
         # Map deprecated/legacy names to working equivalents.
         model_mapping = {
-            "gemini-pro": "gemini-2.0-flash",
-            "gemini-1.5-flash": "gemini-2.0-flash",  # 1.5-flash deprecated on v1, use 2.0
-            "gemini-1.5-pro": "gemini-2.0-flash",    # 1.5-pro deprecated on v1, use 2.0
+            "gemini-pro": "gemini-2.5-flash",
+            "gemini-2.5-flash": "gemini-2.5-flash",  # 1.5-flash deprecated on v1, use 2.0
+            "gemini-2.5-pro": "gemini-2.5-flash",    # 1.5-pro deprecated on v1, use 2.0
         }
         api_model = model_mapping.get(model_name, model_name)
         print(f"[GoogleLLM] Using API model: {api_model}")
@@ -655,7 +655,7 @@ class GoogleLLM(BaseLLMProvider):
             raise
     
     def get_available_models(self) -> List[str]:
-        return ["gemini-2.0-flash", "gemini-2.0-pro-exp", "gemini-1.5-pro"]
+        return ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"]
 
 
 class CohereLLM(BaseLLMProvider):
@@ -3446,16 +3446,16 @@ async def call_llm_with_tools(messages: List[Dict], tools: List[Dict], model_id:
             if not provider_data or not provider_data.api_key:
                 return {"content": "Error: Google API key not configured", "tool_calls": []}
             
-            # Map model name to actual API model (gemini-2.0-flash is the current reliable model)
+            # Map model name to actual API model (gemini-2.5-flash is the current reliable model)
             # Google API requires specific model names
             model_mapping = {
-                "gemini-pro": "gemini-2.0-flash",
-                "gemini-1.5-flash": "gemini-2.0-flash",
-                "gemini-1.5-pro": "gemini-2.0-flash",
-                "gemini-2.0-flash": "gemini-2.0-flash",
-                "gemini-flash": "gemini-2.0-flash"
+                "gemini-pro": "gemini-2.5-flash",
+                "gemini-2.5-flash": "gemini-2.5-flash",
+                "gemini-2.5-pro": "gemini-2.5-flash",
+                "gemini-2.5-flash": "gemini-2.5-flash",
+                "gemini-flash": "gemini-2.5-flash"
             }
-            api_model = model_mapping.get(model_lower, "gemini-2.0-flash")
+            api_model = model_mapping.get(model_lower, "gemini-2.5-flash")
             print(f"   📍 Mapped model {model_lower} -> {api_model} (for function calling)")
             
             print(f"   🔧 Gemini function calling with model: {api_model}")
@@ -6060,9 +6060,9 @@ Return a JSON object with these fields:
    Tool-capable models: OpenAI (gpt-*), Anthropic (claude-*), Google (gemini-*)
    
    Consider:
-   - Agent uses tools → Choose gpt-4o, gpt-4o-mini, claude-sonnet-4, gemini-1.5-pro, etc.
-   - Complex reasoning/analysis → gpt-4o, claude-sonnet-4, gemini-1.5-pro
-   - High volume/simple tasks → gpt-4o-mini, gemini-1.5-flash
+   - Agent uses tools → Choose gpt-4o, gpt-4o-mini, claude-sonnet-4, gemini-2.5-pro, etc.
+   - Complex reasoning/analysis → gpt-4o, claude-sonnet-4, gemini-2.5-pro
+   - High volume/simple tasks → gpt-4o-mini, gemini-2.5-flash
    - Creative/writing tasks → claude models
    - Code tasks → gpt-4o or claude
 
@@ -8027,7 +8027,7 @@ async def get_settings():
     provider_default_models = {
         "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"],
         "anthropic": ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"],
-        "google": ["gemini-2.0-flash"],
+        "google": ["gemini-2.5-flash"],
         "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"],
         "mistral": ["mistral-large-2411", "mistral-small-2503", "open-mistral-nemo"],
         "cohere": ["command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024"],
@@ -8160,7 +8160,7 @@ async def get_available_providers():
         "azure_openai": {"name": "Azure OpenAI", "default_models": ["gpt-4o", "gpt-4", "gpt-35-turbo"]},
         "anthropic": {"name": "Anthropic Claude", "default_models": ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"]},
         "ollama": {"name": "Ollama (Local)", "default_models": ["llama3.2", "llama3.1", "mistral", "codellama", "phi3", "gemma2"]},
-        "google": {"name": "Google Gemini", "default_models": ["gemini-2.0-flash"]},
+        "google": {"name": "Google Gemini", "default_models": ["gemini-2.5-flash"]},
         "xai": {"name": "xAI (Grok)", "default_models": ["grok-beta", "grok-2"]},
         "groq": {"name": "Groq", "default_models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]},
         "mistral": {"name": "Mistral AI", "default_models": ["mistral-large-2411", "mistral-small-2503", "open-mistral-nemo"]},
@@ -8240,7 +8240,7 @@ async def test_llm_connection(request: Dict[str, Any]):
     provider_models = {
         "openai": ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
         "anthropic": ["claude-opus-4-5-20251101", "claude-sonnet-4-20250514", "claude-3-5-haiku-20241022"],
-        "google": ["gemini-2.0-flash"],
+        "google": ["gemini-2.5-flash"],
         "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],  # mixtral deprecated
         "mistral": ["mistral-small-2503", "mistral-large-2411"],  # open-mistral-nemo slow/deprecated
         "cohere": ["command-r-08-2024", "command-r-plus-08-2024"],
