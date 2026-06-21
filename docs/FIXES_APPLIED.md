@@ -20,6 +20,8 @@ All changes are small and surgical. Each was syntax-checked (`py_compile` / `nod
 
 5. **Manager not editable from the Security → Users update path** (`api/security.py`) — `UpdateUserRequest` was missing `manager_id`/`employee_id`, so a user's direct manager could only be set from the Org-Chart "reports to" dropdown (org placement scattered across two UIs). Added both fields to `UpdateUserRequest` and applied them in `update_user` (admin-gated, same pattern as `department_id`).
 
+6. **Modals lingered across navigation + ignored Escape** (`ui/index_parts/features-approvals-page.js`) — the transient dialogs that get appended to `<body>` (Create/Edit Role, Edit User, Edit Tool, etc. — all share `class="fixed inset-0 z-50 … backdrop-blur-sm"` with an id ending in `-modal`) were only dismissible via their own Cancel button, so they stayed open over the next page. Fix: the `navigate()` override now removes any such overlay before switching pages, and a one-time global Escape handler closes the top-most one. The static create-wizard (`<section id="page-create">`) doesn't match the selector, so it's untouched. (node --check passed; live-verify pending deploy.)
+
 ## Findings investigated but NOT fixed (need your input or are larger)
 
 - **Settings LLM keys are stale/invalid; runtime uses ENV keys.** "Test Connection" for both Google **and** OpenAI returns invalid-key errors, yet OpenAI agents work — so the runtime reads env-var keys, not the Settings-stored ones. **Fix = yours:** set a valid `GOOGLE_API_KEY` env (or drop Gemini); the OpenAI default already works. Also a deeper "config source of truth" cleanup.
