@@ -8317,7 +8317,19 @@ async def test_llm_connection(request: Dict[str, Any]):
     }
     
     models_to_test = provider_models.get(provider_name, ["gpt-4o-mini"])
-    
+
+    # Google: discover live models dynamically so we never test a retired version.
+    if provider_name == "google" and api_key:
+        try:
+            live = await _google_list_models(api_key, force=True)
+            if live:
+                flash = [m for m in live if "flash" in m.lower() and "lite" not in m.lower()]
+                pro = [m for m in live if "pro" in m.lower()]
+                picked = ([flash[0]] if flash else []) + ([pro[0]] if pro else [])
+                models_to_test = picked or live[:2]
+        except Exception as _e:
+            models_to_test = ["gemini-flash-latest"]
+
     async def test_single_model(model: str) -> dict:
         """Test a single model with timeout"""
         try:
