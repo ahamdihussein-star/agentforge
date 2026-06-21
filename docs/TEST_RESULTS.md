@@ -138,6 +138,18 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 - Published **Currency Assistant** (gpt-4o, 1 tool) in the end-user **Chat** view: asked for live rates and it **actually called its Exchange Rate tool** → returned real, internally-consistent data (1 EUR = 1.1467 USD, and 1 USD = 0.8719 EUR ≈ 1/1.1467). It also did **not hallucinate** an EGP rate ("not available in the current data"). Tool use + instruction adherence + anti-fabrication all ✅.
 - **Important implication for the KB gap:** since the LLM clearly DOES call API tools, the agent-not-using-its-KB problem is **not** a general "LLM won't call tools" issue — it's specific to the **knowledge tool** path. Most likely the KB either (a) didn't actually attach/persist on the ACME agent, or (b) the agent's KB search queries a different collection/tool_id than where content was embedded. This narrows what to check (and pairs with the "KB wizard sources not persisted" bug family). Still benefits from one Railway log line to confirm which.
 
+## ✅ Process Builder shapes — manual drag-drop + property panels (Build Manually)
+Built a blank "My Workflow" and exercised the palette shapes:
+- **Start** ✅ panel: Manual start / Scheduled.
+- **Send Message** ✅ drag-drop; panel offers Email/Slack/Teams/SMS + recipient picker + subject/message + variable insertion.
+- **Run in Parallel** ✅ panel: "Wait for all paths to finish".
+- **Call Process** ✅ panel: "Select a published process" with a graceful empty state ("No published processes found. Publish a process first…").
+- **Decision / AI Step / Collect Information / Request Approval / Connect to System / Finish** — already exercised in the expense process (Approval panel especially clean: "Who should approve? Their direct manager").
+- **Integration** category in the palette lists the actual catalog **tools** as draggable nodes (Exchange Rate Lookup, Bitcoin Price, ACME Policy KB, ZZ Capture, ZZ Redirect) — this is how a tool gets bound to a node.
+
+🟠 **Finding — "Calculate" shape is MISSING from the manual palette.** Palette goes People → Logic (Decision, Run in Parallel, Call Process) → Integration, with **no "Data" category and no Calculate**, even though Calculate is documented (PROJECT_STATUS "Data" category; KB SHAPES #10 `calculate`) and is in the AI generator's catalog (`wizard.py`). So the AI can emit a shape a manual user can't add — a concrete instance of the "node-type vocabulary scattered, no single source of truth" structural problem.
+Drag-drop, node creation, and property panels all work well otherwise.
+
 ## ✅ Tools inventory + per-tool test (5 tools)
 Exercised every tool via "Try this API" / agent use:
 - **Exchange Rate Lookup** (API) — ✅ works (verified live in agent chat: real, consistent rates).
