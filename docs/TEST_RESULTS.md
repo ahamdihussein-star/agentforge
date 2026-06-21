@@ -138,6 +138,18 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 - Published **Currency Assistant** (gpt-4o, 1 tool) in the end-user **Chat** view: asked for live rates and it **actually called its Exchange Rate tool** → returned real, internally-consistent data (1 EUR = 1.1467 USD, and 1 USD = 0.8719 EUR ≈ 1/1.1467). It also did **not hallucinate** an EGP rate ("not available in the current data"). Tool use + instruction adherence + anti-fabrication all ✅.
 - **Important implication for the KB gap:** since the LLM clearly DOES call API tools, the agent-not-using-its-KB problem is **not** a general "LLM won't call tools" issue — it's specific to the **knowledge tool** path. Most likely the KB either (a) didn't actually attach/persist on the ACME agent, or (b) the agent's KB search queries a different collection/tool_id than where content was embedded. This narrows what to check (and pairs with the "KB wizard sources not persisted" bug family). Still benefits from one Railway log line to confirm which.
 
+## ✅ Tools inventory + per-tool test (5 tools)
+Exercised every tool via "Try this API" / agent use:
+- **Exchange Rate Lookup** (API) — ✅ works (verified live in agent chat: real, consistent rates).
+- **Bitcoin Price** (API) — ✅ executes and returns real data (200), BUT it's **misnamed**: it points at `api.frankfurter.dev/v1/latest` and returns **EUR-based forex rates**, not bitcoin. Also has no description. Data-quality fix: rename/redescribe or repoint.
+- **ACME Policy KB** (knowledge) — ✅ RAG works standalone ("Ask" returns grounded facts). (Agent-level retrieval gap tracked separately.)
+- **ZZ Redirect Test** (API) — test garbage, dead/redirecting URL (the 301→404 class). Likely the tool the generator bound to "Auto-Approve" (404). Cleanup candidate.
+- **ZZ Capture Test** (API) — test garbage, no description. Cleanup candidate.
+Net: no NEW functional tool-execution bug beyond the redirect class (already fixed via follow_redirects across all paths). Remaining tool issues are **data quality** (misnamed Bitcoin Price) + **cleanup** (2 ZZ tools) — deletion left to Ahmed (I don't delete data autonomously). The Tools page has "Cleanup" + "Delete All" buttons for this.
+
+## ✅ Process approval routing VERIFIED (manager path)
+After giving the admin an org placement (Finance dept, manager = Rania ElHadidi), re-ran the expense process @ 800 → no pre-flight error, AI validated 800, decision took the manager branch, and **Manager Approval resolved to the admin's direct manager** (Manager ID + Finance dept shown) with a live Approve/Reject gate. Confirms `dynamic_manager` works once org placement exists — the recurring failure was purely the **seeding gap**. (Role-based routing still to test; post-approval "Record Outcome" still hits the dead ZZ tool.)
+
 ## ✅ gpt-4o path confirmed
 - Switching the agent to **gpt-4o** removed the Gemini 403; chat works. (Saving the draft made the in-wizard test chat use the selected model.)
 
