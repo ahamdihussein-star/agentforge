@@ -2892,6 +2892,28 @@ const API='';
             try { selectAgentType(selectedAgentType); } catch (_) {}
             // Ensure template chips are rendered (safe no-op if not present)
             try { _renderTemplateChips(); } catch (_) { /* ignore */ }
+            // Tailor the Describe step to the chosen build method (process)
+            try { if (stepName === 'ai' && selectedAgentType === 'process') configureProcessDescribe(_createBuildMode); } catch (_) {}
+        }
+
+        // Adapt the process "Describe" step for manual vs AI build:
+        // manual = pure description + a single "Continue" that opens the builder;
+        // ai = description + templates + "AI Generate Agent Tasks".
+        function configureProcessDescribe(mode) {
+            const isManual = (mode === 'manual');
+            const sub = document.getElementById('proc-goal-subtitle');
+            const tmpl = document.getElementById('proc-goal-templates');
+            const genBtn = document.getElementById('create-flow-generate-btn');
+            const manualBtn = document.getElementById('proc-start-manually-btn');
+            if (sub) sub.textContent = isManual
+                ? 'Give your process a clear goal — then build the steps yourself in the visual builder.'
+                : 'AI will suggest the tasks — you review and customize each step before generating.';
+            if (tmpl) tmpl.style.display = isManual ? 'none' : '';
+            if (genBtn) genBtn.style.display = isManual ? 'none' : '';
+            if (manualBtn) {
+                if (isManual) { manualBtn.className = 'btn-primary px-6 py-3 rounded-lg flex-1 font-medium'; manualBtn.textContent = 'Continue →'; }
+                else { manualBtn.className = 'af-wiz-btn-secondary px-6 py-3 rounded-lg font-medium transition'; manualBtn.textContent = 'Define Tasks Manually'; }
+            }
         }
         
         function selectBuildMode(mode) {

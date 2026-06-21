@@ -2194,11 +2194,11 @@
                                     <div class="text-center mb-5">
                                         <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl mb-3">🔄</div>
                                         <div class="font-bold text-lg">Describe your process goal</div>
-                                        <div class="text-sm text-gray-400 mt-1">AI will suggest the tasks — you review and customize each step before generating</div>
+                                        <div id="proc-goal-subtitle" class="text-sm text-gray-400 mt-1">AI will suggest the tasks — you review and customize each step before generating</div>
                                     </div>
                                     <label class="text-sm text-gray-400 mb-2 block">What should this process do? *</label>
                                     <textarea id="w-process-goal" rows="5" class="input-field w-full rounded-lg px-4 py-4" placeholder="Example: Reconcile invoices against purchase orders, detect anomalies, generate a reconciliation report, and route for approval based on risk level..."></textarea>
-                                    <div class="mt-4 pt-4 border-t border-gray-800">
+                                    <div id="proc-goal-templates" class="mt-4 pt-4 border-t border-gray-800">
                                         <div class="flex items-center justify-between gap-3 mb-3">
                                             <p class="text-sm text-gray-500">Start from a template (optional):</p>
                                             <button onclick="openCreateTemplateGallery('process')" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm transition flex items-center gap-2">
@@ -4119,6 +4119,11 @@ Example: I need an HR agent that can:
                             <span class="text-xl block mb-1">🔍</span>
                             <span class="font-medium text-sm">Web Search</span>
                             <p class="text-xs text-gray-500 mt-1">Tavily, Google</p>
+                        </button>
+                        <button onclick="startWizard('create_document')" class="card p-3 rounded-lg text-center hover:border-purple-500 transition border-2 border-transparent">
+                            <span class="text-xl block mb-1">📝</span>
+                            <span class="font-medium text-sm">Create Document</span>
+                            <p class="text-xs text-gray-500 mt-1">Word, Excel, PPTX</p>
                         </button>
                     </div>
                 </div>
@@ -7204,7 +7209,7 @@ Option 3"></textarea>
 
     <script src="/ui/dialogs.js?v=20260621m" defer></script>
     <script src="/ui/shared/review-renderers.js?v=20260621m" defer></script>
-    <script src="/ui/index_parts/app-core.js?v=20260621n" defer></script>
+    <script src="/ui/index_parts/app-core.js?v=20260621o" defer></script>
     <script src="/ui/shared/password-change-modal.js?v=20260621m" defer></script>
     <script src="/ui/index_parts/process-playback.js?v=20260621m" defer></script>
     <script src="/ui/index_parts/approvals.js?v=20260621m" defer></script>
