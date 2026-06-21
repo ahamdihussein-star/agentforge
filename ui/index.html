@@ -332,32 +332,32 @@
                     <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:20px;">Quick Actions</h2>
                     <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:20px;">
                         <div class="dash-card" onclick="navigate('create')" data-permission="agents:create">
-                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-primary) 15%, transparent);"><span>🤖</span></div>
+                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-primary) 15%, transparent);"><svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="10" x="3" y="11" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><path d="M8 16h.01"/><path d="M16 16h.01"/></svg></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Create AI Agent</div>
                             <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Create an intelligent digital Conversational or Process AI agent that can understand, decide, and take action across your systems.</div>
                         </div>
                         <div class="dash-card" onclick="navigate('agents')" data-permission="agents:view">
-                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-secondary) 15%, transparent); animation-delay:0.5s;"><span>🔗</span></div>
+                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-secondary) 15%, transparent); animation-delay:0.5s;"><svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Agent Hub</div>
                             <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Manage, configure, and monitor all your published AI agents.</div>
                         </div>
                         <div class="dash-card" onclick="navigate('chat')" data-permission="chat:use">
-                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--success) 15%, transparent); animation-delay:1s;"><span>💬</span></div>
+                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--success) 15%, transparent); animation-delay:1s;"><svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Chat</div>
                             <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Test and interact with your agents in real-time conversations.</div>
                         </div>
                         <div class="dash-card" onclick="navigate('tools')" data-permission="tools:view">
-                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--warning) 15%, transparent); animation-delay:1.5s;"><span>🔧</span></div>
+                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--warning) 15%, transparent); animation-delay:1.5s;"><svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Tools</div>
                             <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Create APIs, webhooks, and knowledge bases to empower your agents.</div>
                         </div>
                         <div class="dash-card" onclick="window.location.href='/lab'" data-permission="demo:access">
-                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--danger) 15%, transparent); animation-delay:2s;"><span>🧪</span></div>
+                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--danger) 15%, transparent); animation-delay:2s;"><svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Lab</div>
                             <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Experiment with agents in a sandbox environment before going live.</div>
                         </div>
                         <div class="dash-card" onclick="navigate('security')" data-permission="users:view,roles:view,system:admin">
-                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-primary) 10%, transparent); animation-delay:2.5s;"><span>🔐</span></div>
+                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-primary) 10%, transparent); animation-delay:2.5s;"><svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Security</div>
                             <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Manage users, roles, groups, and enterprise security settings.</div>
                         </div>
