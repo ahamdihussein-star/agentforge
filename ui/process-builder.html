@@ -54,16 +54,13 @@
 
     <!-- Top Toolbar -->
     <div id="top-toolbar">
-        <div class="toolbar-logo">
-            <img src="/AgentForge_Logo.png" alt="AgentForge" onerror="this.style.display='none'">
-            <span class="toolbar-title">Workflow Builder</span>
+        <div class="toolbar-left">
+            <span class="tb-crumb">Workflow Builder</span>
+            <span class="tb-crumb-sep">/</span>
+            <input type="text" id="workflow-name" class="wf-title-input" value="My Workflow" placeholder="Untitled workflow" aria-label="Workflow name">
+            <input type="text" id="workflow-description" aria-hidden="true" tabindex="-1" style="display:none;">
         </div>
-        
-        <div style="display:flex; flex-direction:column; justify-content:center; gap:1px; min-width:0; max-width:190px; flex:none;">
-            <input type="text" id="workflow-name" class="workflow-name-input" value="My Workflow" placeholder="Workflow Name" style="max-width:190px; height:28px;">
-            <input type="text" id="workflow-description" placeholder="Add a short description…" title="What this process does — shown on saved templates and helps the AI" style="max-width:190px; height:16px; font-size:11px; line-height:1.1; padding:0 10px; background:transparent; border:none; color:var(--pb-muted); outline:none;">
-        </div>
-        
+
         <div class="toolbar-actions">
             <div class="tb-seg">
             <button type="button" class="toolbar-btn btn-secondary flow-btn" id="flow-vertical" title="Vertical: من أعلى لأسفل (Top → Bottom)" onclick="setFlowDirection('vertical')">
