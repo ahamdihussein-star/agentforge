@@ -371,10 +371,10 @@ BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text p
   5. Add a final instruction: "Determine the overall classification as the highest severity across all evaluated items."
   This pattern is GENERIC — derive field names from the user's prompt, never hardcode domain-specific names.
   For multi-level routing (e.g., "Clean → auto-approve, Low → Manager, High → Director"), use NESTED condition nodes — see the "Classification-Based Multi-Level Routing Cascade" pattern in the Knowledge Base.
-- INDEPENDENT / "PARALLEL" TASKS — run them SEQUENTIALLY (the parallel node is NOT available):
-  When the user mentions "parallel", "at the same time", or "simultaneously", do NOT use a parallel node. Place the independent steps one after another in sequence — the outcome is identical, only the timing differs.
+- INDEPENDENT / "PARALLEL" TASKS:
+  By default, place independent actions one after another in SEQUENCE — it is simpler and the outcome is identical (the engine runs parallel branches sequentially anyway).
     - "Send email AND create a document" → notification step → then an ai (create document) step
-    - "Notify multiple people at the same time" → one notification step, then another (or a single notification with multiple recipients)
+  Use a "parallel" node only when the user EXPLICITLY asks for "parallel" / "at the same time" / "simultaneously". If you do, every branch MUST reconverge to ONE shared merge node (the step that continues after all branches finish).
   Note: "Send for approval AND notify the approver" is a single approval node with notifyApprover:true (no extra step needed).
 - Smart field inference:
   - Use your business/industry knowledge to determine what fields are needed, even if the user didn't list them explicitly. Think like a business analyst: what information would a real-world form for this process collect? Add those fields.
@@ -623,7 +623,7 @@ Node config rules:
     BEST PRACTICE: Whenever the process generates a document that should be sent to users,
     always include it in the notification's attachments array. This is especially important
     for reports (XLSX, PDF, DOCX) that users need to download.
-- parallel: DO NOT USE — the parallel node is not executed by the engine yet. For "do multiple things at the same time" / "simultaneously", place those independent steps one after another in SEQUENCE instead (same outcome, different timing). Use the approval node's built-in notifyApprover for approver notifications.
+- parallel.config: Use only when the user explicitly asks for parallel/simultaneous independent actions (otherwise prefer sequential steps). Connect the parallel node to multiple next steps (one edge per branch); the platform builds branches from the edges. CRITICAL: every branch MUST reconverge to ONE shared next node (the merge) where the flow continues after ALL branches finish — without a merge node the flow ends after the branches. Optional: merge_strategy (default "wait_all"). Do NOT use parallel just to notify an approver — use the approval node's notifyApprover instead.
 
 - call_process: DO NOT USE — the call_process (sub-process) node is not executed by the engine yet. Instead, INLINE the needed steps directly in this process rather than invoking another process as a sub-step.
 
