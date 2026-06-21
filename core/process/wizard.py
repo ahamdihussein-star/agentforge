@@ -164,7 +164,8 @@ Available tools:
 Organization structure:
 {org_context}
 
-Node types allowed: trigger, form, ai, tool, condition, approval, notification, end, parallel, call_process
+Node types allowed: trigger, form, ai, tool, condition, approval, notification, end
+(Do NOT use parallel, call_process, loop, or while — they are not executed by the engine yet. Run independent steps sequentially, inline sub-steps directly, and handle per-item logic inside a single AI step.)
 
 Return ONLY valid JSON in this exact format (same as visual builder):
 - nodes array with id, type, name, config, output_variable (if applicable), x, y
