@@ -627,6 +627,20 @@
     color: var(--text-primary) !important;
 }
 
+/* Solid colored buttons must keep WHITE text on every theme (the global
+   text-color overrides above otherwise darken them). Scoped to buttons/links
+   so colored card titles are unaffected. */
+button[class*="bg-blue-5"], button[class*="bg-blue-6"], button[class*="bg-blue-7"],
+button[class*="bg-indigo-5"], button[class*="bg-indigo-6"], button[class*="bg-indigo-7"],
+button[class*="bg-purple-5"], button[class*="bg-purple-6"], button[class*="bg-purple-7"],
+button[class*="bg-green-5"], button[class*="bg-green-6"], button[class*="bg-green-7"],
+a[class*="bg-blue-6"], a[class*="bg-purple-6"], a[class*="bg-indigo-6"],
+.btn-primary,
+button[class*="bg-blue-5"] *, button[class*="bg-blue-6"] *, button[class*="bg-indigo-6"] *,
+button[class*="bg-purple-6"] *, button[class*="bg-green-6"] *, .btn-primary * {
+    color: #ffffff !important;
+}
+
 /* ========== Standard UI/UX: Borders, Inputs, Cards, Focus States ========== */
 
 /* Cards - clear visible borders */
