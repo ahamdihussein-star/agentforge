@@ -21,9 +21,9 @@ None of these block a *scripted* demo if we avoid the affected blocks, but the s
 
 ## 🔴 Fix before the demo
 
-**1. Large parts of the system may be reachable without logging in.** *(confirm one setting)*
-There's a safety gate in front of the system that has two modes: "just watch" and "actually block." It ships in **"just watch"** by default — meaning unless someone explicitly turned on "actually block" on the server, many internal commands can be reached **without a login**.
-→ *Impact:* a curious or malicious person could pull or poke at data without an account. **Action: confirm the server has the "enforce" mode turned on** before any external demo.
+**1. Confirm the security gate is set to "enforce" on the server.** *(likely already done — just verify)*
+There's a safety gate in front of the system with two modes: "just watch" (logs but allows) and "enforce" (blocks). The code's *default* is "just watch," and this is **intentional during development** (it's documented in `DEPLOYMENT.md`, which says to flip it to "enforce" before going live). Our own backlog notes say this was already switched to "enforce" in production.
+→ *Impact:* if it's truly on "enforce," this is handled. If it somehow got left on "just watch," any command that doesn't have its own separate login check (see #5) would be reachable without an account. **Action: just confirm the Railway setting `AUTH_GATE_MODE` = `enforce`.** (Not a hidden bug — a one-line setting to verify.)
 
 **2. Some workflow steps look like they work but don't actually run.**
 Four of the "building blocks" in the workflow builder — **"Repeat for each item," "Run in parallel," "Loop while…," and "Call another process"** — are drawn on the screen and report success, but the engine never actually executes them.
@@ -83,6 +83,21 @@ Approval steps and notification steps resolve recipients with **two separate cop
 - **16. Pop-up windows (modals) stay open when you switch pages** and don't close with the Escape key — looks broken.
 - **17. "Just now" items show "3 hours ago"** in a couple of places (a time-zone display bug).
 - **18. Leftover test junk to delete:** a few "ZZ …" test tools, a test role, and a test department I created while verifying fixes.
+
+---
+
+## Did we verify this? (and is it already handled elsewhere?)
+
+I re-checked the biggest claims directly in the code and cross-referenced our existing notes (`POST_DEMO_BACKLOG.md`, `DEPLOYMENT.md`, the process-builder docs) so nothing here is a false alarm or a duplicate of something already solved:
+
+- **#2 (workflow blocks don't run) — verified in the code.** The workflow engine has *no* code at all for "run in parallel," "loop," or "call another process," yet the shape docs present them as working. This is **new** — it's not in our backlog. (The "loop" case is partly acknowledged in our docs, which suggest doing repetition inside an AI step instead.)
+- **#1 (security gate) — already a documented step**, not a hidden flaw. `DEPLOYMENT.md` says ship in "watch" mode while iterating then switch to "enforce"; our backlog says enforce was already set in production. So: **confirm the setting, don't treat it as new work.**
+- **#3 (fail-open full-admin) & #7 ("saved" when it failed) — verified, and they're examples of a known family.** Our backlog already lists "fail-open patterns" and "62 bare except / 693 broad except" as a known issue to clean up. These are concrete instances of that — so they corroborate the existing plan rather than contradict it.
+- **The data "split-brain" — already our #1 backlog item** ("dual storage = no single source of truth"). The Department fix this session is a first concrete fix of that root issue.
+- **Some process items overlap our backlog** (recipients/`{{email}}` not resolved, approval assignee empty, derived-field skipping approval). Note: I separately **verified live** that manager approval routing *does* work once a person has a manager/department set — so that specific path is in good shape now.
+
+### Also still open from the earlier backlog (so coverage is complete)
+These were logged on 2026-06-20 and are not repeated in detail above, but belong on the same list: CORS is wide-open (`*` with credentials); process conditions are built as evaluated Python strings (unsafe-eval); the maintenance/reset-workspace tools should be hidden before a customer demo; `BASE_URL` points at the wrong domain (breaks OAuth/MFA email links); there are **zero automated tests**; and ~980 `print()` calls instead of real logging. Full detail in `docs/POST_DEMO_BACKLOG.md`.
 
 ---
 
