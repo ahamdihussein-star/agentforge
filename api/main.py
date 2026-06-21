@@ -2708,7 +2708,9 @@ def _generate_document_file(fmt: str, title: str, content: str, rows=None):
     out_dir = os.path.join(os.environ.get('UPLOAD_PATH', 'data/uploads'), 'generated')
     os.makedirs(out_dir, exist_ok=True)
     safe_title = re.sub(r'[^A-Za-z0-9_\- ]', '', (title or 'document')).strip() or 'document'
-    fname = f"{safe_title[:40].replace(' ', '_')}_{uuid.uuid4().hex[:6]}.{fmt}"
+    # Full 32-char token => the download link is an unguessable capability URL,
+    # so the file can be served without a bearer token (browser-clickable) safely.
+    fname = f"{safe_title[:40].replace(' ', '_')}_{uuid.uuid4().hex}.{fmt}"
     fpath = os.path.join(out_dir, fname)
     text = str(content or '')
     if fmt == 'docx':

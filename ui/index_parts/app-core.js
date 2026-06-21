@@ -2911,9 +2911,19 @@ const API='';
             if (tmpl) tmpl.style.display = isManual ? 'none' : '';
             if (genBtn) genBtn.style.display = isManual ? 'none' : '';
             if (manualBtn) {
-                if (isManual) { manualBtn.className = 'btn-primary px-6 py-3 rounded-lg flex-1 font-medium'; manualBtn.textContent = 'Continue →'; }
-                else { manualBtn.className = 'af-wiz-btn-secondary px-6 py-3 rounded-lg font-medium transition'; manualBtn.textContent = 'Define Tasks Manually'; }
+                if (isManual) { manualBtn.className = 'btn-primary px-6 py-3 rounded-lg flex-1 font-medium'; manualBtn.textContent = 'Continue →'; manualBtn.onclick = proc_describeToBuilder; }
+                else { manualBtn.className = 'af-wiz-btn-secondary px-6 py-3 rounded-lg font-medium transition'; manualBtn.textContent = 'Define Tasks Manually'; manualBtn.onclick = function () { proc_startManually(); }; }
             }
+        }
+
+        // Manual process: from the Describe step, open the visual builder directly,
+        // carrying the goal/description so it shows as the process description.
+        function proc_describeToBuilder() {
+            const g = (document.getElementById('w-process-goal')?.value || '').trim();
+            if (!g) { showToast('Please describe your process goal first.', 'warning'); return; }
+            try { localStorage.setItem('af_pending_process_desc', g); } catch (_) {}
+            try { openVisualBuilder(); } catch (_) {}
+            try { closeCreateWizardModal(true); } catch (_) {}
         }
         
         function selectBuildMode(mode) {

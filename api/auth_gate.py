@@ -65,8 +65,9 @@ PUBLIC_API_PATHS = {
 
 # Public /api prefixes.
 PUBLIC_API_PREFIXES = (
-    "/api/health",     # health checks (probes / uptime)
-    "/api/public/",    # reserved for per-agent API-key channels (Phase 3)
+    "/api/health",         # health checks (probes / uptime)
+    "/api/public/",        # reserved for per-agent API-key channels (Phase 3)
+    "/api/tool-outputs/",  # generated documents — served as unguessable capability URLs (32-char token in filename)
 )
 
 
