@@ -2770,27 +2770,8 @@ const API='';
             const convCard = document.getElementById('type-card-conversational');
             const procCard = document.getElementById('type-card-process');
             
-            if (selectedAgentType === 'conversational') {
-                convCard?.classList.add('border-purple-500');
-                convCard?.classList.remove('border-transparent');
-                procCard?.classList.remove('border-green-500');
-                procCard?.classList.add('border-transparent');
-                // Update selection text
-                if (convCard) convCard.querySelector('.text-sm:last-child').textContent = '\u2713 Selected';
-                if (procCard) procCard.querySelector('.text-sm:last-child').textContent = 'Click to select';
-                if (convCard) convCard.querySelector('.text-sm:last-child').className = 'text-sm text-purple-400 font-medium';
-                if (procCard) procCard.querySelector('.text-sm:last-child').className = 'text-sm text-gray-500';
-            } else {
-                procCard?.classList.add('border-green-500');
-                procCard?.classList.remove('border-transparent');
-                convCard?.classList.remove('border-purple-500');
-                convCard?.classList.add('border-transparent');
-                // Update selection text
-                if (procCard) procCard.querySelector('.text-sm:last-child').textContent = '\u2713 Selected';
-                if (convCard) convCard.querySelector('.text-sm:last-child').textContent = 'Click to select';
-                if (procCard) procCard.querySelector('.text-sm:last-child').className = 'text-sm text-green-400 font-medium';
-                if (convCard) convCard.querySelector('.text-sm:last-child').className = 'text-sm text-gray-500';
-            }
+            convCard?.classList.toggle('selected', selectedAgentType === 'conversational');
+            procCard?.classList.toggle('selected', selectedAgentType === 'process');
             
             // Toggle method copy blocks
             document.getElementById('build-manual-copy-conv')?.classList.toggle('hidden', selectedAgentType !== 'conversational');
@@ -2898,16 +2879,8 @@ const API='';
             aiCard?.classList.toggle('selected', mode === 'ai');
             
             if (mode === 'manual') {
-                manualCard?.classList.add('border-blue-500');
-                manualCard?.classList.remove('border-transparent');
-                if (manualSel) { manualSel.textContent = '\u2713 Selected'; manualSel.className = 'text-sm text-blue-400 font-medium'; }
-                if (aiSel) { aiSel.textContent = 'Click to select'; aiSel.className = 'text-sm text-gray-500'; }
                 if (continueBtn) continueBtn.textContent = 'Start Setup';
             } else if (mode === 'ai') {
-                aiCard?.classList.add('border-purple-500');
-                aiCard?.classList.remove('border-transparent');
-                if (aiSel) { aiSel.textContent = '\u2713 Selected'; aiSel.className = 'text-sm text-purple-400 font-medium'; }
-                if (manualSel) { manualSel.textContent = 'Click to select'; manualSel.className = 'text-sm text-gray-500'; }
                 if (continueBtn) continueBtn.textContent = 'Continue';
             } else {
                 if (continueBtn) continueBtn.textContent = 'Continue';
