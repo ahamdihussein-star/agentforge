@@ -2256,6 +2256,14 @@ async def update_user(user_id: str, request: UpdateUserRequest, background_tasks
         if request.department_id is not None:
             changes["department_id"] = {"old": target_user.department_id, "new": request.department_id}
             target_user.department_id = request.department_id
+        if request.manager_id is not None:
+            # Org placement: direct manager. Previously only editable via the Org Chart,
+            # which caused the manager to live in a different UI from the rest of the user's
+            # attributes. Now editable through the standard user-update path too.
+            changes["manager_id"] = {"old": target_user.manager_id, "new": request.manager_id}
+            target_user.manager_id = request.manager_id
+        if request.employee_id is not None:
+            target_user.employee_id = request.employee_id
         if request.role_ids is not None:
             changes["role_ids"] = {"old": target_user.role_ids, "new": request.role_ids}
             target_user.role_ids = request.role_ids
