@@ -862,14 +862,15 @@ a:focus-visible {
     transform: rotate(90deg);
 }
 
-/* Wizard secondary (Back) button — pairs with the primary Continue */
+/* Wizard secondary (Back) button — accent outline that coordinates with the
+ * primary (gradient) Continue button while keeping the visual hierarchy. */
 .af-wiz-btn-secondary {
-    background: var(--bg-input);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
+    background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 45%, transparent);
+    color: var(--accent-primary);
     cursor: pointer;
 }
 .af-wiz-btn-secondary:hover {
+    background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
     border-color: var(--accent-primary);
-    background: color-mix(in srgb, var(--accent-primary) 8%, var(--bg-input));
 }
