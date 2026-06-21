@@ -155,6 +155,24 @@ Your responsibilities:
 11. For tool nodes: set toolId by matching the best available tool from the provided tools list
 12. Make the result production-usable, not a placeholder example or skeleton
 
+HARD RULES (these are non-negotiable — violating them produces a broken workflow):
+A. TASK TYPE IS AUTHORITATIVE. Each task's "type" is the user's explicit choice. Map it 1:1 to the node type:
+   form→form, ai→ai, tool→tool, condition→condition, approval→approval, notification→notification.
+   A task with type "form" MUST become a node with type "form" — NEVER "ai", "tool", or anything else,
+   even if the step is about "entering", "validating", or "checking" data. Keep ONE node per task; do NOT
+   merge two form tasks into one, and do NOT drop a form task or convert it into a different node type.
+B. FORM NODES MUST KEEP THEIR FIELDS. For every task typed "form", read its instructions and create a
+   config.fields entry for EVERY input it mentions (e.g. "enter the vendor name" → a text field "vendorName";
+   "enter the invoice amount" → a number field "invoiceAmount"; "select the category from: A, B, C" → a
+   select field "category" with those options; "upload the invoice" → a file field). Never output a form
+   node with an empty fields array.
+C. CONDITION RULES MUST HAVE A REAL FIELD. Every rule inside a condition's config.rules MUST have a
+   non-empty "field" that references a variable produced by an EARLIER node — a form field name, or an
+   earlier node's output_variable / outputField (e.g. "invoiceAmount" or "parsedData.totalAmount").
+   NEVER emit a condition rule with an empty "field". In a multi-threshold cascade (e.g. <5000 auto,
+   5000–20000 manager, >20000 director) EVERY condition in the cascade compares the SAME amount variable —
+   reuse the exact same field name in each.
+
 Platform Knowledge:
 {platform_knowledge}
 
@@ -1009,6 +1027,10 @@ class ProcessWizard:
             # Run the same review + validate passes as the standard wizard
             process_def = await self._review_and_fix_process(process_def, goal)
             process_def = self._validate_and_enhance_visual_builder(process_def, {})
+            # Deterministic safety net: the user's explicit task types are
+            # authoritative — enforce them and repair broken condition fields
+            # even if the LLM passes drifted (form demoted to ai, empty rule field).
+            process_def = self._reconcile_structured_nodes(process_def, tasks)
             return process_def
         except Exception as e:
             logger.error("[Wizard] generate_from_structured_goal failed: %s", e)
@@ -1538,9 +1560,11 @@ class ProcessWizard:
             "REVIEW CHECKLIST — fix any violations:\n\n"
             "1. FORM NODE: If the user goal mentions collecting information, entering data, "
             "uploading files, or filling in details, there MUST be a 'form' node with properly "
-            "configured fields (name, label, type, required, placeholder). The form node must "
-            "come right after the trigger/start node. If the form is missing, ADD it with "
-            "appropriate fields inferred from the goal.\n\n"
+            "configured fields (name, label, type, required, placeholder). If the form is missing, "
+            "ADD it with appropriate fields inferred from the goal. NEVER convert a data-collection "
+            "step into an 'ai' or 'tool' node — a step where a person enters/uploads/selects/provides "
+            "information is ALWAYS type 'form' with the matching fields, never an AI step. Do not "
+            "merge two separate input steps into one; keep each as its own form node with its fields.\n\n"
             "2. DATA FLOW: Every variable referenced in later nodes (conditions, notifications, "
             "AI steps) must be produced by an earlier node. Check that output_variable names "
             "match what downstream nodes reference.\n\n"
@@ -1567,8 +1591,11 @@ class ProcessWizard:
             "and an output_variable. outputFields used in conditions must be type 'number' "
             "(not 'currency').\n\n"
             "11. CONDITION RULES: condition.config must have a 'rules' array (even for single conditions). "
-            "Each rule: {field, operator, value}. Use 'connectors' to join rules (and/or), and allow mixed logic. "
-            "Set legacy fields: field/operator/value from the first rule.\n\n"
+            "Each rule: {field, operator, value}. The 'field' MUST be non-empty and MUST reference a "
+            "variable produced by an EARLIER node (a form field name or an earlier node's output_variable/"
+            "outputField) — NEVER leave 'field' blank. In a multi-threshold cascade, every condition compares "
+            "the SAME amount variable (reuse the identical field name). Use 'connectors' to join rules (and/or), "
+            "and allow mixed logic. Set legacy fields: field/operator/value from the first rule.\n\n"
             "Return the CORRECTED process JSON (full object). No markdown, no explanation."
         )
 
