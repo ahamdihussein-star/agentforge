@@ -7812,7 +7812,7 @@
             const token = getAuthToken();
             if (!token) return [];
             try {
-                const res = await fetch('/api/security/users', { headers: { 'Authorization': 'Bearer ' + token } });
+                const res = await fetch('/api/security/users?limit=500', { headers: { 'Authorization': 'Bearer ' + token } });
                 if (!res.ok) return [];
                 const data = await res.json();
                 const users = Array.isArray(data.users) ? data.users : (Array.isArray(data) ? data : []);
