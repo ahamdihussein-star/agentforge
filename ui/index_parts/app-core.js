@@ -2559,11 +2559,40 @@ const API='';
             if (kind === 'process' && tpl.process_definition) {
                 try { closeCreateTemplateGallery(); } catch (_) {}
 
+                const procDef = tpl.process_definition;
+
+                // ── Faithful reuse ───────────────────────────────────────────
+                // If the template carries a real saved drawing (its own nodes +
+                // edges), restore THAT directly into the builder instead of
+                // re-generating from the goal. Re-generation runs the LLM again,
+                // producing a different/distorted process and losing the exact
+                // step configuration that was saved. The original goal + wizard
+                // tasks ride along as meta so re-saving the reused process keeps
+                // them. Goal-only built-in templates (no saved nodes) fall
+                // through to the wizard generate flow below.
+                const _tplNodes = Array.isArray(procDef.nodes) ? procDef.nodes : [];
+                if (_tplNodes.length >= 2) {
+                    try {
+                        sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(procDef));
+                        sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
+                            goal: procDef.wizard_goal || '',
+                            name: procDef.name || tpl.title || 'My Workflow',
+                            animate: true,
+                            wizard_goal: procDef.wizard_goal || '',
+                            wizard_tasks: Array.isArray(procDef.wizard_tasks) ? procDef.wizard_tasks : []
+                        }));
+                        try { showToast('Template loaded — opening the saved process in the builder.', 'success'); } catch (_) {}
+                        window.location.href = '/ui/process-builder.html?draft=1';
+                        return;
+                    } catch (e) {
+                        console.error('Template restore error:', e);
+                        // fall through to the wizard goal/tasks flow below
+                    }
+                }
+
                 // Ensure wizard is on process / AI describe path
                 try { selectAgentType('process'); } catch (_) {}
                 try { createFlowGo('ai'); } catch (_) {}
-
-                const procDef = tpl.process_definition;
 
                 // Restore original wizard goal (saved text), or fall back to template title
                 const savedGoal = procDef.wizard_goal || '';
