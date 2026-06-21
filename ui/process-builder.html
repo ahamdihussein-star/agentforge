@@ -59,7 +59,10 @@
             <span class="toolbar-title">Workflow Builder</span>
         </div>
         
-        <input type="text" id="workflow-name" class="workflow-name-input" value="My Workflow" placeholder="Workflow Name" style="max-width:150px;">
+        <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+            <input type="text" id="workflow-name" class="workflow-name-input" value="My Workflow" placeholder="Workflow Name" style="max-width:220px;">
+            <input type="text" id="workflow-description" placeholder="Add a short description…" title="What this process does — shown on saved templates and helps the AI" style="max-width:220px; font-size:11px; padding:2px 8px; background:transparent; border:none; border-bottom:1px solid rgba(148,163,184,0.25); color:var(--pb-muted); outline:none;">
+        </div>
         
         <div class="toolbar-actions">
             <span class="toolbar-label">Flow:</span>
