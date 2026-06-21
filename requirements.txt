@@ -70,7 +70,7 @@ alembic==1.13.1
 psycopg2-binary==2.9.9
 
 # MySQL (optional)
-# pymysql==1.1.0
+pymysql==1.1.0
 
 # SQL Server (optional)
 # pyodbc==5.0.1
