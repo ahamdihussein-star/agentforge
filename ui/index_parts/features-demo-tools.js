@@ -257,6 +257,7 @@
                             </div>
                             <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition">
                                 ${a.status === 'published' ? `<button onclick="event.stopPropagation();openAgent('${a.id}', 'published', 'conversational')" class="p-2 rounded-lg bg-purple-500 hover:bg-purple-600 text-white text-sm" title="Chat">💬</button>` : ''}
+                                ${a.status === 'published' ? `<button onclick="event.stopPropagation();openAgentIntegration('${a.id}','conversational')" class="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm" title="API & Embed">🔌</button>` : ''}
                                 ${a.status === 'draft' ? `<button data-permission="agents:publish" onclick="event.stopPropagation();publishAgent('${a.id}')" class="p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm" title="Publish">🚀</button>` : ''}
                                 <button data-permission="agents:edit" onclick="event.stopPropagation();editAgent('${a.id}')" class="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm" title="Edit">✏️</button>
                                 ${a.is_owner ? `<button data-permission="agents:delete" onclick="event.stopPropagation();deleteAgent('${a.id}')" class="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-400 text-sm" title="Delete">🗑️</button>` : ''}
