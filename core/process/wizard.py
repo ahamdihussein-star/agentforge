@@ -172,6 +172,17 @@ C. CONDITION RULES MUST HAVE A REAL FIELD. Every rule inside a condition's confi
    NEVER emit a condition rule with an empty "field". In a multi-threshold cascade (e.g. <5000 auto,
    5000–20000 manager, >20000 director) EVERY condition in the cascade compares the SAME amount variable —
    reuse the exact same field name in each.
+D. CONDITION OPERATORS MUST MATCH THE WORDING. Map the instruction wording to the operator precisely:
+   "under / below / less than X" → less_than; "over / above / more than X" → greater_than;
+   "at least / X or more" → greater_than_or_equal; "up to / X or less" → less_than_or_equal;
+   "equals / matches / is the same as" → equals. NEVER use "equals" for a threshold like "under 5000" —
+   that is a range test, so the operator is less_than (value 5000), not equals.
+E. APPROVER ROUTING USES REAL PEOPLE, NOT FORM VALUES. An approval's assignee must be a real routing
+   target: the requester's direct manager (assigneeType "dynamic_manager"), a named department's
+   manager/head, a specific user, or a role. NEVER set the approver (or a routing department) to a form
+   field value such as a category/dropdown selection (e.g. do NOT route to a department named
+   "{{formData.expenseCategory}}"). "Route to the requester's department manager" means the direct/
+   department manager — assigneeType "dynamic_manager" — not a department named after a form value.
 
 Platform Knowledge:
 {platform_knowledge}
@@ -1749,7 +1760,15 @@ class ProcessWizard:
             "interpolation. Never leave template empty.\n\n"
             "6. CONDITION LOGIC: Verify that condition expressions and onTrue/onFalse targets "
             "match the business intent described in the goal. The 'yes' path should match "
-            "what is TRUE (e.g., 'totalAmount < 500' being TRUE means auto-approve).\n\n"
+            "what is TRUE (e.g., 'totalAmount < 500' being TRUE means auto-approve). The OPERATOR "
+            "must match the wording: 'under/below/less than' → less_than, 'over/above/more than' → "
+            "greater_than, 'at least' → greater_than_or_equal, 'equals/matches' → equals. NEVER use "
+            "'equals' for a threshold like 'under 5000' — that must be less_than with value 5000.\n\n"
+            "6b. APPROVER ROUTING: An approval assignee must be a real target — the requester's direct "
+            "manager (assigneeType 'dynamic_manager'), a named department's manager, a specific user, or "
+            "a role. NEVER route an approval to a form field value (e.g. a department named "
+            "'{{formData.expenseCategory}}'). 'Route to the department manager' = assigneeType "
+            "'dynamic_manager', not a department named after a form selection.\n\n"
             "7. PARALLEL NODES: Parallel nodes should only be used when truly independent "
             "tasks run concurrently. Each parallel branch must connect back to a shared "
             "next node. Do NOT use parallel just for approver notification.\n\n"
