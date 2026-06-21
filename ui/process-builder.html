@@ -59,18 +59,18 @@
             <span class="toolbar-title">Workflow Builder</span>
         </div>
         
-        <input type="text" id="workflow-name" class="workflow-name-input" value="My Workflow" placeholder="Workflow Name">
+        <input type="text" id="workflow-name" class="workflow-name-input" value="My Workflow" placeholder="Workflow Name" style="max-width:170px;">
         
         <div class="toolbar-actions">
             <span class="toolbar-label">Flow:</span>
             <button type="button" class="toolbar-btn btn-secondary flow-btn" id="flow-vertical" title="Vertical: من أعلى لأسفل (Top → Bottom)" onclick="setFlowDirection('vertical')">
-                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M12 3v18"/><path d="m8 7 4-4 4 4"/><path d="m8 17 4 4 4-4"/></svg> Vertical
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M12 3v18"/><path d="m8 7 4-4 4 4"/><path d="m8 17 4 4 4-4"/></svg>
             </button>
             <button type="button" class="toolbar-btn btn-secondary flow-btn" id="flow-horizontal" title="Horizontal: من يسار ليمين (Left → Right)" onclick="setFlowDirection('horizontal')">
-                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M3 12h18"/><path d="m7 8-4 4 4 4"/><path d="m17 8 4 4-4 4"/></svg> Horizontal
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M3 12h18"/><path d="m7 8-4 4 4 4"/><path d="m17 8 4 4-4 4"/></svg>
             </button>
             <button type="button" class="toolbar-btn btn-secondary" title="Arrange process in best alignment" onclick="alignProcess()">
-                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M12 3v18"/><rect width="14" height="6" x="5" y="5" rx="1"/><rect width="10" height="6" x="7" y="13" rx="1"/></svg> Align
+                <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M12 3v18"/><rect width="14" height="6" x="5" y="5" rx="1"/><rect width="10" height="6" x="7" y="13" rx="1"/></svg>
             </button>
             <span class="toolbar-label" style="margin-left:8px;">Labels:</span>
             <button type="button" class="toolbar-btn btn-secondary" title="Smaller label font" onclick="setLabelFontSize(-1)">
