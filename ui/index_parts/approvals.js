@@ -1115,33 +1115,34 @@
             // AI recommendation banner (recommendation is added to the selection).
             if (wizard.modelReason && wizard.goal) {
                 html += `
-                    <div class="mb-3 p-3 bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-500/30 rounded-lg">
+                    <div class="mb-3 p-3 rounded-lg" style="background:color-mix(in srgb,var(--accent-primary) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent-primary) 30%,transparent)">
                         <div class="flex items-start gap-2">
                             <span class="text-lg">💡</span>
                             <div>
-                                <p class="text-sm font-medium text-purple-300">AI Recommendation</p>
-                                <p class="text-xs text-gray-400 mt-1">${wizard.modelReason}</p>
+                                <p class="text-sm font-medium" style="color:var(--accent-primary,#8b5cf6)">AI Recommendation</p>
+                                <p class="text-xs mt-1" style="color:var(--text-secondary,#94a3b8)">${wizard.modelReason}</p>
                             </div>
                         </div>
                     </div>
                 `;
             }
 
-            // Build grouped checkbox rows.
+            // Build grouped checkbox rows. Colors come from theme variables so the
+            // text stays readable on ANY theme / modal background.
             let optionsHtml = '';
             for (const [providerName, models] of Object.entries(modelsByProvider)) {
                 const icon = providerIcons[providerName] || '🤖';
                 optionsHtml += `<div class="af-mdd-group">
-                    <p class="px-2 pt-2 pb-1 text-[11px] uppercase tracking-wide text-gray-500 flex items-center gap-1"><span>${icon}</span>${providerName}</p>`;
+                    <p class="px-2 pt-2 pb-1 text-[11px] uppercase tracking-wide flex items-center gap-1" style="color:var(--text-muted,#9ca3af)"><span>${icon}</span>${providerName}</p>`;
                 for (const model of models) {
                     const checked = wizard.models.includes(model.id);
                     const isDefault = model.id === wizard.model;
                     optionsHtml += `
-                        <label class="af-mdd-opt flex items-center gap-2 px-2 py-2 rounded-md cursor-pointer hover:bg-purple-500/10"
+                        <label class="af-mdd-opt flex items-center gap-2 px-2 py-2 rounded-md cursor-pointer"
                                data-model="${model.id}" data-search="${(model.id + ' ' + providerName).toLowerCase()}">
-                            <input type="checkbox" class="af-mdd-cb w-4 h-4 accent-purple-500" ${checked ? 'checked' : ''} onchange="toggleModelCheck(this)">
-                            <span class="text-sm">${model.name}</span>
-                            <span class="af-mdd-def text-[10px] bg-purple-500/30 text-purple-200 px-1.5 py-0.5 rounded ml-auto ${isDefault ? '' : 'hidden'}">Default</span>
+                            <input type="checkbox" class="af-mdd-cb w-4 h-4" style="accent-color:var(--accent-primary,#8b5cf6)" ${checked ? 'checked' : ''} onchange="toggleModelCheck(this)">
+                            <span class="text-sm" style="color:var(--text-primary,#f1f5f9)">${model.name}</span>
+                            <span class="af-mdd-def text-[10px] px-1.5 py-0.5 rounded ml-auto ${isDefault ? '' : 'hidden'}" style="background:color-mix(in srgb,var(--accent-primary) 22%,transparent);color:var(--accent-primary,#8b5cf6)">Default</span>
                         </label>`;
                 }
                 optionsHtml += `</div>`;
@@ -1150,22 +1151,28 @@
             html += `
                 <div class="af-mdd relative">
                     <button type="button" id="model-dd-toggle" onclick="toggleModelDropdown()"
-                            class="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-gray-700 hover:border-purple-500 bg-gray-900/40 text-sm transition-colors">
+                            class="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors"
+                            style="background:var(--bg-card,#1f2937);border:1px solid var(--border-color,#475569);color:var(--text-primary,#f1f5f9)">
                         <span id="model-dd-label" class="truncate text-left">Select models</span>
-                        <svg id="model-dd-chev" class="w-4 h-4 flex-none text-gray-400 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        <svg id="model-dd-chev" class="w-4 h-4 flex-none transition-transform" style="color:var(--text-muted,#9ca3af)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                     </button>
-                    <div id="model-dd-panel" class="hidden mt-2 border border-gray-700 rounded-lg bg-gray-900/70 overflow-hidden">
-                        <div class="p-2 border-b border-gray-700">
+                    <div id="model-dd-panel" class="hidden mt-2 rounded-lg overflow-hidden" style="background:var(--bg-card,#1f2937);border:1px solid var(--border-color,#475569)">
+                        <div class="p-2" style="border-bottom:1px solid var(--border-color,#475569)">
                             <div class="relative">
-                                <svg class="w-4 h-4 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                                <svg class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2" style="color:var(--text-muted,#9ca3af)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
                                 <input id="model-dd-search" type="text" placeholder="Search models…" oninput="filterModelOptions()"
-                                       class="w-full pl-8 pr-3 py-2 text-sm rounded-md bg-gray-800 border border-gray-700 focus:border-purple-500 outline-none">
+                                       class="w-full pl-8 pr-3 py-2 text-sm rounded-md outline-none"
+                                       style="background:var(--bg-secondary,var(--input-bg,#0f172a));border:1px solid var(--border-color,#475569);color:var(--text-primary,#f1f5f9)">
                             </div>
                         </div>
                         <div id="model-dd-options" class="max-h-[260px] overflow-y-auto p-1">${optionsHtml}</div>
-                        <div id="model-dd-empty" class="hidden px-3 py-4 text-center text-xs text-gray-500">No models match your search.</div>
+                        <div id="model-dd-empty" class="hidden px-3 py-4 text-center text-xs" style="color:var(--text-muted,#9ca3af)">No models match your search.</div>
                     </div>
                 </div>
+                <style>
+                  #model-dd-options .af-mdd-opt:hover{background:color-mix(in srgb,var(--accent-primary) 14%,transparent);}
+                  #model-dd-search::placeholder{color:var(--text-muted,#9ca3af);}
+                </style>
             `;
 
             container.innerHTML = html;
