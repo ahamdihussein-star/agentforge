@@ -365,7 +365,8 @@ async def check_access(
     user_id: str = Query(..., description="User ID to check"),
     org_id: str = Query(..., description="Organization ID"),
     role_ids: Optional[str] = Query(None, description="Comma-separated role IDs"),
-    group_ids: Optional[str] = Query(None, description="Comma-separated group IDs")
+    group_ids: Optional[str] = Query(None, description="Comma-separated group IDs"),
+    current_user: User = Depends(get_current_user)  # require a valid login (was open to anyone)
 ):
     """
     Check what a user can do with an agent.
@@ -394,7 +395,8 @@ async def check_access(
 async def preview_user_access(
     agent_id: str,
     preview_user_id: str = Query(..., description="User ID to preview"),
-    org_id: str = Query(..., description="Organization ID")
+    org_id: str = Query(..., description="Organization ID"),
+    current_user: User = Depends(get_current_user)  # require a valid login (was open to anyone)
 ):
     """
     Preview what a specific user would see/do with an agent.
