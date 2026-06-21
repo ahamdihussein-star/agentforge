@@ -412,12 +412,12 @@
                     </div>
                 </div>
 
-                <!-- Workflow Agents Section -->
+                <!-- Process Agents Section -->
                 <div id="workflow-agents-section" class="hidden mb-8">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-xl">🔄</div>
                         <div>
-                            <h3 class="font-semibold text-lg">Workflow Automations</h3>
+                            <h3 class="font-semibold text-lg">Process Automations</h3>
                             <p class="text-sm text-gray-400">Automated processes and approval flows</p>
                         </div>
                         <span id="workflow-count" class="ml-auto px-2 py-1 rounded-full bg-green-500/20 text-green-400 text-sm font-medium">0</span>
@@ -1587,7 +1587,7 @@
                                         <button onclick="loadOrgJobTitles()" class="btn-secondary px-4 py-2 rounded-lg">Reload</button>
                                         <button onclick="saveOrgJobTitles()" class="btn-primary px-6 py-2 rounded-lg">Save Titles</button>
                                     </div>
-                                    <div class="text-[11px] text-gray-500">Used in the Identity Directory and as safe picker options in workflows.</div>
+                                    <div class="text-[11px] text-gray-500">Used in the Identity Directory and as safe picker options in processes.</div>
                                 </div>
                             </div>
                         </div>
@@ -2110,7 +2110,7 @@
                                     <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl">🔄</div>
                                     <div>
                                         <h3 class="font-bold">Process Agent</h3>
-                                        <p class="text-xs text-gray-400">Intelligent workflow automation</p>
+                                        <p class="text-xs text-gray-400">Intelligent process automation</p>
                                     </div>
                                 </div>
                                 <p class="text-sm text-gray-300 mb-3">Automate end-to-end business processes with AI-powered decisions, multi-level approvals, and system integrations — built visually, no code required.</p>
@@ -2142,7 +2142,7 @@
                                     </div>
                                 </div>
                                 <p class="text-sm text-gray-300 mb-2" id="build-manual-copy-conv">Start from a blank slate. Configure tasks, tools, personas, and access controls step by step — ideal for tailored enterprise requirements.</p>
-                                <p class="text-sm text-gray-300 mb-2 hidden" id="build-manual-copy-proc">Open the visual Process Builder and design your workflow with drag & drop — full control over every step, condition, and integration.</p>
+                                <p class="text-sm text-gray-300 mb-2 hidden" id="build-manual-copy-proc">Open the visual Process Builder and design your process with drag & drop — full control over every step, condition, and integration.</p>
                                 
                             </div>
 
@@ -2155,7 +2155,7 @@
                                     </div>
                                 </div>
                                 <p class="text-sm text-gray-300 mb-2" id="build-ai-copy-conv">Describe your use case in plain language. AgentForge AI will generate the full assistant configuration — tasks, tools, and guardrails — ready to review and deploy.</p>
-                                <p class="text-sm text-gray-300 mb-2 hidden" id="build-ai-copy-proc">Describe your business process in plain language. AgentForge AI will generate the complete workflow and open it in the visual editor — ready to review, adjust, and deploy.</p>
+                                <p class="text-sm text-gray-300 mb-2 hidden" id="build-ai-copy-proc">Describe your business process in plain language. AgentForge AI will generate the complete process and open it in the visual editor — ready to review, adjust, and deploy.</p>
                                 
                             </div>
                         </div>
@@ -2193,10 +2193,10 @@
                                 <div id="proc-substep-goal">
                                     <div class="text-center mb-5">
                                         <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl mb-3">🔄</div>
-                                        <div class="font-bold text-lg">Describe your workflow goal</div>
+                                        <div class="font-bold text-lg">Describe your process goal</div>
                                         <div class="text-sm text-gray-400 mt-1">AI will suggest the tasks — you review and customize each step before generating</div>
                                     </div>
-                                    <label class="text-sm text-gray-400 mb-2 block">What should this workflow do? *</label>
+                                    <label class="text-sm text-gray-400 mb-2 block">What should this process do? *</label>
                                     <textarea id="w-process-goal" rows="5" class="input-field w-full rounded-lg px-4 py-4" placeholder="Example: Reconcile invoices against purchase orders, detect anomalies, generate a reconciliation report, and route for approval based on risk level..."></textarea>
                                     <div class="mt-4 pt-4 border-t border-gray-800">
                                         <div class="flex items-center justify-between gap-3 mb-3">
@@ -2212,7 +2212,7 @@
                                 <div id="proc-substep-tasks" class="hidden">
                                     <div class="flex items-start justify-between mb-4 gap-3">
                                         <div>
-                                            <div class="font-bold text-base">Review workflow tasks</div>
+                                            <div class="font-bold text-base">Review process tasks</div>
                                             <div class="text-sm text-gray-400 mt-0.5">Tasks run in this order. Edit the instructions to control exactly what each step does — no guessing by the AI.</div>
                                         </div>
                                         <button onclick="proc_goBackToGoal()" class="flex-shrink-0 text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition">← Edit Goal</button>
@@ -2221,10 +2221,10 @@
                                     <button onclick="proc_addTask()" class="w-full py-2.5 rounded-lg border border-dashed border-gray-700 text-sm text-gray-400 hover:border-gray-500 hover:text-gray-200 transition">
                                         + Add Task
                                     </button>
-                                    <p class="text-xs text-gray-500 mt-3">Each task maps to one node in the workflow. The platform follows your instructions exactly — nothing is added or removed.</p>
+                                    <p class="text-xs text-gray-500 mt-3">Each task maps to one node in the process. The platform follows your instructions exactly — nothing is added or removed.</p>
                                     <div class="mt-4">
                                         <button onclick="proc_generateFromTasks()" class="btn-primary w-full py-3 rounded-lg font-medium text-sm">
-                                            Generate Workflow →
+                                            Generate Process →
                                         </button>
                                     </div>
                                 </div>
@@ -7002,8 +7002,8 @@ Option 3"></textarea>
                 <div class="flex items-center gap-3">
                     <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl">🔄</div>
                     <div>
-                        <h3 id="process-modal-title" class="text-lg font-bold">Workflow Execution</h3>
-                        <p id="process-modal-subtitle" class="text-sm" style="color: var(--text-secondary);">Submit data to run this workflow</p>
+                        <h3 id="process-modal-title" class="text-lg font-bold">Process Execution</h3>
+                        <p id="process-modal-subtitle" class="text-sm" style="color: var(--text-secondary);">Submit data to run this process</p>
                     </div>
                 </div>
                 <button onclick="closeProcessModal()" class="text-gray-400 hover:text-white text-2xl px-2">✕</button>
@@ -7021,7 +7021,7 @@ Option 3"></textarea>
                 <!-- Trigger Form Section -->
                 <div id="process-trigger-form">
                     <h4 class="font-semibold mb-4 flex items-center gap-2">📝 Input Data</h4>
-                    <p class="text-sm mb-4" style="color: var(--text-secondary);">Enter the data to trigger this workflow:</p>
+                    <p class="text-sm mb-4" style="color: var(--text-secondary);">Enter the data to trigger this process:</p>
                     
                     <!-- Dynamic Form Fields (populated by JS) -->
                     <div id="process-form-fields" class="space-y-4">
@@ -7043,7 +7043,7 @@ Option 3"></textarea>
                     <!-- Submit Button -->
                     <div class="mt-6">
                         <button onclick="executeProcess()" class="w-full py-3 rounded-lg flex items-center justify-center gap-2 text-lg text-white font-medium" style="background: linear-gradient(135deg, #22c55e 0%, #14b8a6 100%);">
-                            <span>▶️</span> Run Workflow
+                            <span>▶️</span> Run Process
                         </button>
                     </div>
                 </div>
@@ -7058,7 +7058,7 @@ Option 3"></textarea>
                             <div class="animate-spin w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full"></div>
                             <div>
                                 <p class="font-medium text-yellow-400">Processing...</p>
-                                <p class="text-sm text-gray-400">Your workflow is running</p>
+                                <p class="text-sm text-gray-400">Your process is running</p>
                             </div>
                         </div>
                     </div>
@@ -7096,7 +7096,7 @@ Option 3"></textarea>
                                 </div>
                                 <div>
                                     <h4 class="font-semibold text-lg">Waiting for Approval</h4>
-                                    <p class="text-sm text-gray-400">Approve to continue and reach the end of the workflow.</p>
+                                    <p class="text-sm text-gray-400">Approve to continue and reach the end of the process.</p>
                                 </div>
                             </div>
                             <button type="button" onclick="openApprovalDashboard()" class="btn-secondary px-3 py-2 rounded-lg text-sm">Open approvals</button>
@@ -7120,7 +7120,7 @@ Option 3"></textarea>
                             </button>
                         </div>
 
-                        <p id="process-inline-approval-hint" class="text-xs text-gray-500 mt-3">Tip: After approving, the workflow will automatically continue and the report will appear when it completes.</p>
+                        <p id="process-inline-approval-hint" class="text-xs text-gray-500 mt-3">Tip: After approving, the process will automatically continue and the report will appear when it completes.</p>
                     </div>
                 </div>
             </div>
@@ -7169,7 +7169,7 @@ Option 3"></textarea>
                     <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-2xl">🧭</div>
                     <div>
                         <h3 class="text-lg font-bold">Process playback</h3>
-                        <p id="process-playback-subtitle" class="text-sm text-gray-400">Showing the actual path the workflow took</p>
+                        <p id="process-playback-subtitle" class="text-sm text-gray-400">Showing the actual path the process took</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
