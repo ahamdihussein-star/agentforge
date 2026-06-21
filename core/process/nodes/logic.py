@@ -21,6 +21,28 @@ from .base import BaseNodeExecutor, register_executor
 logger = logging.getLogger(__name__)
 
 
+# Control-flow node types whose full orchestration (branch fan-out / merge,
+# iteration, nested-process invocation) is NOT yet implemented in the engine.
+# Until each is properly implemented + tested, fail VISIBLY here instead of
+# silently returning success while doing nothing (which would produce wrong/
+# empty results with a green checkmark). The AI generator is also steered away
+# from these in the process-builder knowledge base.
+def _step_not_available_yet(display_name: str) -> NodeResult:
+    return NodeResult.failure(
+        error=ExecutionError(
+            category=ErrorCategory.CONFIGURATION,
+            code="STEP_NOT_AVAILABLE",
+            message=(
+                f"The '{display_name}' step isn't available in the workflow engine yet. "
+                f"Rebuild this step using the supported blocks (Collect Information, AI Step, "
+                f"Decision, Request Approval, Send Message, Connect to System) for now."
+            ),
+        ),
+        logs=[f"'{display_name}' is not implemented in the engine yet — failing visibly "
+              f"instead of silently producing wrong results."],
+    )
+
+
 @register_executor(NodeType.CONDITION)
 class ConditionNodeExecutor(BaseNodeExecutor):
     """
@@ -322,7 +344,8 @@ class WhileNodeExecutor(BaseNodeExecutor):
         context: ProcessContext
     ) -> NodeResult:
         """Execute while node"""
-        
+        return _step_not_available_yet(self.display_name)
+
         condition = self.get_config_value(node, 'condition', 'false')
         body_nodes = self.get_config_value(node, 'body_nodes', [])
         max_iterations = self.get_config_value(node, 'max_iterations', 1000)
