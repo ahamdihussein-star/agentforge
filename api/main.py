@@ -2659,6 +2659,96 @@ def build_tool_definitions(tools: List['ToolConfiguration']) -> List[Dict]:
     return tool_defs
 
 
+def _generate_document_file(fmt: str, title: str, content: str, rows=None):
+    """Generate a Word/Excel/PowerPoint file from agent-provided content.
+    Returns (filename, filepath). Uses python-docx / openpyxl / python-pptx."""
+    fmt = (fmt or 'docx').lower().strip()
+    if fmt in ('word', 'doc', 'document'):
+        fmt = 'docx'
+    elif fmt in ('excel', 'spreadsheet', 'sheet', 'xls'):
+        fmt = 'xlsx'
+    elif fmt in ('powerpoint', 'ppt', 'slides', 'deck', 'presentation'):
+        fmt = 'pptx'
+    out_dir = os.path.join(os.environ.get('UPLOAD_PATH', 'data/uploads'), 'generated')
+    os.makedirs(out_dir, exist_ok=True)
+    safe_title = re.sub(r'[^A-Za-z0-9_\- ]', '', (title or 'document')).strip() or 'document'
+    fname = f"{safe_title[:40].replace(' ', '_')}_{uuid.uuid4().hex[:6]}.{fmt}"
+    fpath = os.path.join(out_dir, fname)
+    text = str(content or '')
+    if fmt == 'docx':
+        from docx import Document as _Docx
+        doc = _Docx()
+        if title:
+            doc.add_heading(title, level=0)
+        for para in text.split('\n'):
+            p = para.rstrip()
+            s = p.strip()
+            if not s:
+                continue
+            if s.startswith('### '):
+                doc.add_heading(s[4:].strip(), level=3)
+            elif s.startswith('## '):
+                doc.add_heading(s[3:].strip(), level=2)
+            elif s.startswith('# '):
+                doc.add_heading(s[2:].strip(), level=1)
+            elif s.startswith(('- ', '* ')):
+                doc.add_paragraph(s[2:].strip(), style='List Bullet')
+            else:
+                doc.add_paragraph(p)
+        doc.save(fpath)
+    elif fmt == 'xlsx':
+        import openpyxl as _oxl
+        wb = _oxl.Workbook()
+        ws = wb.active
+        ws.title = (title or 'Sheet')[:31]
+        data_rows = rows if isinstance(rows, list) and rows else [
+            (ln.split('\t') if '\t' in ln else ln.split(','))
+            for ln in text.split('\n') if ln.strip()
+        ]
+        for r in data_rows:
+            cells = r if isinstance(r, list) else [r]
+            ws.append([str(c).strip() for c in cells])
+        wb.save(fpath)
+    elif fmt == 'pptx':
+        from pptx import Presentation as _Prs
+        prs = _Prs()
+        ts = prs.slides.add_slide(prs.slide_layouts[0])
+        try:
+            ts.shapes.title.text = title or 'Presentation'
+        except Exception:
+            pass
+        blocks = re.split(r'\n\s*\n|\n(?=#{1,3}\s)', text.strip())
+        for b in blocks:
+            lines = [ln.strip() for ln in b.split('\n') if ln.strip()]
+            if not lines:
+                continue
+            slide = prs.slides.add_slide(prs.slide_layouts[1])
+            try:
+                slide.shapes.title.text = lines[0].lstrip('#').strip()
+            except Exception:
+                pass
+            bullets = lines[1:] if len(lines) > 1 else []
+            try:
+                tf = slide.placeholders[1].text_frame
+                tf.clear()
+                for i, ln in enumerate(bullets):
+                    ln = ln.lstrip('-*').strip()
+                    if i == 0:
+                        tf.text = ln
+                    else:
+                        para = tf.add_paragraph()
+                        para.text = ln
+            except Exception:
+                pass
+        prs.save(fpath)
+    else:
+        fname = fname.rsplit('.', 1)[0] + '.txt'
+        fpath = os.path.join(out_dir, fname)
+        with open(fpath, 'w', encoding='utf-8') as f:
+            f.write(text)
+    return fname, fpath
+
+
 async def execute_tool(tool_id: str, tool_type: str, arguments: Dict) -> Dict:
     """Execute a tool and return the result"""
     print(f"\n🔧 EXECUTING TOOL")
