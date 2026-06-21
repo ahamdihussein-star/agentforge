@@ -15,11 +15,12 @@ The LLM MUST only use node types listed here. Do NOT invent unsupported nodes or
 
 These shapes appear in the catalog but are **NOT yet executed by the workflow engine**. You MUST NOT use them in any generated process — a workflow that uses them will fail at runtime. Express the same intent with supported shapes instead:
 
-- **Run in Parallel** (`parallel`) → run the steps **sequentially** (one after another). Same result, only timing differs.
 - **Repeat / Loop** (`loop`) and **While** (`while`) → handle "for each item" logic **inside a single AI Step** (have the AI process the whole list in one step), or design the process for a single item.
 - **Call Process** (`call_process`) → **inline** the needed steps directly in this process; do not invoke another process as a sub-step.
 
-USE ONLY these shapes: Start, Finish, Collect Information (`form`), AI Step (`ai`), Decision (`condition`), Request Approval (`approval`), Send Message (`notification`), Connect to System (`tool`), Calculate (`calculate`).
+**Run in Parallel** (`parallel`) IS supported. When you use it, every branch MUST reconverge to ONE shared "merge" node (the step that continues the flow after all branches finish) — the engine runs all branches, then continues from that merge node.
+
+USE these shapes: Start, Finish, Collect Information (`form`), AI Step (`ai`), Decision (`condition`), Request Approval (`approval`), Send Message (`notification`), Connect to System (`tool`), Calculate (`calculate`), Run in Parallel (`parallel`).
 
 ## Visual Builder UX (Zero Free-Text Policy)
 

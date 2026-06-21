@@ -164,8 +164,8 @@ Available tools:
 Organization structure:
 {org_context}
 
-Node types allowed: trigger, form, ai, tool, condition, approval, notification, end
-(Do NOT use parallel, call_process, loop, or while — they are not executed by the engine yet. Run independent steps sequentially, inline sub-steps directly, and handle per-item logic inside a single AI step.)
+Node types allowed: trigger, form, ai, tool, condition, approval, notification, end, parallel
+(Do NOT use call_process, loop, or while — they are not executed by the engine yet. Inline sub-steps directly, and handle per-item/iteration logic inside a single AI step. When you use parallel, every branch MUST reconverge to one shared merge node.)
 
 Return ONLY valid JSON in this exact format (same as visual builder):
 - nodes array with id, type, name, config, output_variable (if applicable), x, y
@@ -305,8 +305,8 @@ IMPORTANT:
 - Output ONLY valid JSON. No markdown. No extra keys outside the schema.
 - This workflow will be edited in a visual builder and executed by an engine.
 - Use ONLY these node types (exact strings):
-  - trigger, condition, ai, tool, approval, notification, form, end
-  NOTE: Do NOT use "parallel", "call_process", "loop", "while", "action", "delay", "read_document", "create_document", or "calculate" — they are NOT executed by the engine. Run independent steps sequentially (one after another), inline any sub-steps directly, and do per-item/iteration logic inside a single "ai" node.
+  - trigger, condition, ai, tool, approval, notification, form, end, parallel
+  NOTE: Do NOT use "call_process", "loop", "while", "action", "delay", "read_document", "create_document", or "calculate" — they are NOT executed by the engine. Inline any sub-steps directly, and do per-item/iteration logic inside a single "ai" node. The "parallel" node IS supported — every branch MUST reconverge to one shared merge node.
   - For ANY computation (totals, averages, counts, formulas), use an "ai" node — NEVER a separate calculate step.
   - For file extraction or document generation, use an "ai" node with the appropriate aiMode (see below).
   - For iteration/repetition scenarios, use an "ai" node that handles the iteration internally.
