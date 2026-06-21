@@ -8661,12 +8661,19 @@ def _af_cors():
 
 def _af_integration_view(agent_id, cfg, base):
     agent = app_state.agents.get(agent_id)
+    atype = getattr(agent, "agent_type", None) or (cfg or {}).get("agent_type") or "conversational"
+    is_process = atype == "process"
     return {
         "agent_id": agent_id,
         "agent_name": getattr(agent, "name", "Agent") if agent else "Agent",
+        "agent_type": atype,
         "enabled": bool((cfg or {}).get("enabled")),
         "api_key": (cfg or {}).get("api_key"),
-        "endpoint": f"{base}/api/public/agents/{agent_id}/chat",
+        # Conversational -> chat endpoint + embeddable widget.
+        # Process -> run (trigger) endpoint + status polling endpoint.
+        "endpoint": (f"{base}/api/public/agents/{agent_id}/run" if is_process
+                     else f"{base}/api/public/agents/{agent_id}/chat"),
+        "status_endpoint": f"{base}/api/public/agents/{agent_id}/runs/{{execution_id}}" if is_process else None,
         "widget_src": f"{base}/ui/embed/agent-widget.js",
         "base_url": base,
     }
@@ -8686,6 +8693,16 @@ async def enable_agent_integration(agent_id: str, request: _AFRequest, current_u
         cfg["api_key"] = "af_pub_" + _af_secrets.token_hex(20)
         cfg["created_at"] = datetime.utcnow().isoformat()
     cfg["enabled"] = True
+    # Remember the execution context (used by process-agent runs so approvals/permissions resolve)
+    try:
+        cfg["org_id"] = getattr(current_user, "org_id", None) or "org_default"
+        cfg["owner_user_id"] = str(current_user.id) if current_user else "system"
+        cfg["owner_name"] = getattr(current_user, "name", None) or getattr(current_user, "email", "Owner")
+    except Exception:
+        pass
+    ag = app_state.agents.get(agent_id)
+    if ag is not None:
+        cfg["agent_type"] = getattr(ag, "agent_type", "conversational")
     ints[agent_id] = cfg
     _af_save_integrations(ints)
     return _af_integration_view(agent_id, cfg, _af_base_url(request))
