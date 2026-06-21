@@ -2894,10 +2894,8 @@ const API='';
             const continueBtn = document.getElementById('create-flow-continue-btn');
             
             // Reset visuals
-            manualCard?.classList.remove('border-blue-500');
-            aiCard?.classList.remove('border-purple-500');
-            manualCard?.classList.add('border-transparent');
-            aiCard?.classList.add('border-transparent');
+            manualCard?.classList.toggle('selected', mode === 'manual');
+            aiCard?.classList.toggle('selected', mode === 'ai');
             
             if (mode === 'manual') {
                 manualCard?.classList.add('border-blue-500');
@@ -2912,8 +2910,6 @@ const API='';
                 if (manualSel) { manualSel.textContent = 'Click to select'; manualSel.className = 'text-sm text-gray-500'; }
                 if (continueBtn) continueBtn.textContent = 'Continue';
             } else {
-                if (manualSel) { manualSel.textContent = 'Click to select'; manualSel.className = 'text-sm text-gray-500'; }
-                if (aiSel) { aiSel.textContent = 'Click to select'; aiSel.className = 'text-sm text-gray-500'; }
                 if (continueBtn) continueBtn.textContent = 'Continue';
             }
         }

@@ -2089,7 +2089,7 @@
                     <div id="create-flow-step-type">
                         <div class="grid md:grid-cols-2 gap-4 mb-5">
                             <div id="type-card-conversational" onclick="selectAgentType('conversational')"
-                                 class="card rounded-xl p-5 cursor-pointer border-2 border-purple-500 hover:border-purple-400 transition-all">
+                                 class="af-choice selected p-5 cursor-pointer"><div class="af-choice-badge"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></div>
                                 <div class="flex items-center gap-3 mb-3">
                                     <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-2xl">💬</div>
                                     <div>
@@ -2103,11 +2103,11 @@
                                     <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">Knowledge Base</span>
                                     <span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">24/7 Availability</span>
                                 </div>
-                                <div class="text-sm text-purple-400 font-medium">✓ Selected</div>
+                                
                             </div>
 
                             <div id="type-card-process" onclick="selectAgentType('process')"
-                                 class="card rounded-xl p-5 cursor-pointer border-2 border-transparent hover:border-green-500 transition-all">
+                                 class="af-choice p-5 cursor-pointer"><div class="af-choice-badge"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></div>
                                 <div class="flex items-center gap-3 mb-3">
                                     <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl">🔄</div>
                                     <div>
@@ -2121,7 +2121,7 @@
                                     <span class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs">AI Decisions</span>
                                     <span class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 text-xs">No-Code Builder</span>
                                 </div>
-                                <div class="text-sm text-gray-500">Click to select</div>
+                                
                             </div>
                         </div>
 
@@ -2135,7 +2135,7 @@
                     <!-- Flow Step: Setup Method -->
                     <div id="create-flow-step-method" class="hidden">
                         <div class="grid md:grid-cols-2 gap-4 mb-5">
-                            <div id="build-card-manual" onclick="selectBuildMode('manual')" class="card rounded-xl p-5 cursor-pointer border-2 border-transparent hover:border-blue-500 transition-all">
+                            <div id="build-card-manual" onclick="selectBuildMode('manual')" class="af-choice p-5 cursor-pointer"><div class="af-choice-badge"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></div>
                                 <div class="flex items-center gap-3 mb-3">
                                     <div class="w-12 h-12 rounded-xl bg-gray-800 flex items-center justify-center text-2xl">🛠️</div>
                                     <div>
@@ -2145,10 +2145,10 @@
                                 </div>
                                 <p class="text-sm text-gray-300 mb-2" id="build-manual-copy-conv">Start from a blank slate. Configure tasks, tools, personas, and access controls step by step — ideal for tailored enterprise requirements.</p>
                                 <p class="text-sm text-gray-300 mb-2 hidden" id="build-manual-copy-proc">Open the visual Process Builder and design your workflow with drag & drop — full control over every step, condition, and integration.</p>
-                                <div class="text-sm text-gray-500" id="build-manual-selected">Click to select</div>
+                                
                             </div>
 
-                            <div id="build-card-ai" onclick="selectBuildMode('ai')" class="card rounded-xl p-5 cursor-pointer border-2 border-transparent hover:border-purple-500 transition-all">
+                            <div id="build-card-ai" onclick="selectBuildMode('ai')" class="af-choice p-5 cursor-pointer"><div class="af-choice-badge"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></div>
                                 <div class="flex items-center gap-3 mb-3">
                                     <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-2xl">✨</div>
                                     <div>
@@ -2158,7 +2158,7 @@
                                 </div>
                                 <p class="text-sm text-gray-300 mb-2" id="build-ai-copy-conv">Describe your use case in plain language. AgentForge AI will generate the full assistant configuration — tasks, tools, and guardrails — ready to review and deploy.</p>
                                 <p class="text-sm text-gray-300 mb-2 hidden" id="build-ai-copy-proc">Describe your business process in plain language. AgentForge AI will generate the complete workflow and open it in the visual editor — ready to review, adjust, and deploy.</p>
-                                <div class="text-sm text-gray-500" id="build-ai-selected">Click to select</div>
+                                
                             </div>
                         </div>
 
