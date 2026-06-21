@@ -87,7 +87,25 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-    
+
+    <!-- Create-wizard contrast: map hardcoded Tailwind grays/badges to theme tokens so
+         text stays readable & consistent on every theme (enterprise, accessible). -->
+    <style id="af-wizard-contrast">
+      #page-create .text-gray-300,
+      #page-create .text-gray-400 { color: var(--text-secondary) !important; }
+      #page-create .text-gray-500,
+      #page-create .text-gray-600 { color: var(--text-muted) !important; }
+      #page-create .wizard-step-label { color: var(--text-secondary) !important; }
+      /* Step circle + active label keep full strength */
+      #page-create .wizard-step.active .wizard-step-label,
+      #page-create .wizard-step-label.active { color: var(--text-primary) !important; }
+      /* Pill/badge text (e.g. "AI Generated") -> dark accent for strong contrast on tinted bg */
+      #page-create [class*="text-purple-2"],
+      #page-create [class*="text-purple-3"],
+      #page-create [class*="text-purple-4"] { color: color-mix(in srgb, var(--accent-primary) 72%, #000) !important; }
+      #page-create [class*="text-green-2"],
+      #page-create [class*="text-green-3"] { color: color-mix(in srgb, var(--success, #16a34a) 78%, #000) !important; }
+    </style>
 </head>
 <body class="text-white" style="height:100vh;overflow:hidden;margin:0;background:var(--bg-primary);color:var(--text-primary);">
 <!-- Brand icon gradients (themed via CSS accent vars) -->
