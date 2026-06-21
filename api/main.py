@@ -8791,6 +8791,90 @@ async def public_agent_chat(agent_id: str, request: _AFRequest):
         return _AFJSONResponse({"error": "Agent failed to respond. Please try again."}, status_code=500, headers=_af_cors())
 
 
+from fastapi import BackgroundTasks as _AFBackgroundTasks
+
+@app.options("/api/public/agents/{agent_id}/run")
+async def public_agent_run_preflight(agent_id: str):
+    return _AFJSONResponse({}, headers=_af_cors())
+
+@app.post("/api/public/agents/{agent_id}/run")
+async def public_agent_run(agent_id: str, request: _AFRequest, background_tasks: _AFBackgroundTasks):
+    """Public, API-key-authenticated trigger for a PROCESS agent. Starts a workflow
+    run (executed as the owner so approvals/permissions resolve) and returns an
+    execution id the caller can poll. Conversational agents use /chat instead."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    api_key = (request.headers.get("x-api-key") or request.headers.get("X-API-Key")
+               or (body or {}).get("api_key") or request.query_params.get("key"))
+    cfg = _af_load_integrations().get(agent_id)
+    if not cfg or not cfg.get("enabled") or not cfg.get("api_key"):
+        return _AFJSONResponse({"error": "This agent is not publicly available."}, status_code=403, headers=_af_cors())
+    if not api_key or api_key != cfg.get("api_key"):
+        return _AFJSONResponse({"error": "Invalid API key."}, status_code=401, headers=_af_cors())
+    trigger_input = (body or {}).get("input")
+    if trigger_input is None:
+        trigger_input = (body or {}).get("trigger_input") or {}
+    try:
+        from api.modules.process.router import _run_engine_background, _get_llm_registry
+        from api.modules.process.service import ProcessAPIService
+        from database.config import get_db_session
+        db = get_db_session()
+        try:
+            svc = ProcessAPIService(db=db, llm_registry=_get_llm_registry())
+            owner_info = {"id": cfg.get("owner_user_id", "system"),
+                          "org_id": cfg.get("org_id", "org_default"),
+                          "name": cfg.get("owner_name", "Owner")}
+            response, should_run = await svc.start_execution_fast(
+                agent_id=agent_id, org_id=cfg.get("org_id", "org_default"),
+                user_id=cfg.get("owner_user_id", "system"), trigger_input=trigger_input,
+                trigger_type="api", conversation_id=None, correlation_id=None, user_info=owner_info,
+            )
+        finally:
+            try: db.close()
+            except Exception: pass
+        if should_run:
+            background_tasks.add_task(_run_engine_background, str(response.id), _get_llm_registry())
+        return _AFJSONResponse({"execution_id": str(getattr(response, "id", "")),
+                                "status": getattr(response, "status", "running")}, headers=_af_cors())
+    except Exception as e:
+        print(f"[Public run] error: {e}")
+        import traceback; traceback.print_exc()
+        return _AFJSONResponse({"error": "Failed to start the process. Please try again."}, status_code=500, headers=_af_cors())
+
+@app.get("/api/public/agents/{agent_id}/runs/{execution_id}")
+async def public_agent_run_status(agent_id: str, execution_id: str, request: _AFRequest):
+    api_key = (request.headers.get("x-api-key") or request.headers.get("X-API-Key")
+               or request.query_params.get("key"))
+    cfg = _af_load_integrations().get(agent_id)
+    if not cfg or not cfg.get("enabled"):
+        return _AFJSONResponse({"error": "Not available."}, status_code=403, headers=_af_cors())
+    if not api_key or api_key != cfg.get("api_key"):
+        return _AFJSONResponse({"error": "Invalid API key."}, status_code=401, headers=_af_cors())
+    try:
+        from database.config import get_db_session
+        from database.services.process_execution_service import ProcessExecutionService
+        db = get_db_session()
+        try:
+            ex = ProcessExecutionService(db).get_execution(execution_id)
+        finally:
+            try: db.close()
+            except Exception: pass
+        if not ex:
+            return _AFJSONResponse({"error": "Execution not found"}, status_code=404, headers=_af_cors())
+        def _g(o, k, d=None):
+            return (o.get(k, d) if isinstance(o, dict) else getattr(o, k, d))
+        return _AFJSONResponse({
+            "execution_id": execution_id,
+            "status": _g(ex, "status", "unknown"),
+            "result": _g(ex, "result") or _g(ex, "output") or _g(ex, "final_output"),
+        }, headers=_af_cors())
+    except Exception as e:
+        print(f"[Public run status] error: {e}")
+        return _AFJSONResponse({"error": "Failed to get status."}, status_code=500, headers=_af_cors())
+
+
 @app.post("/api/settings/test-embedding")
 async def test_embedding_connection(request: Dict[str, Any]):
     """Test embedding provider connection"""
