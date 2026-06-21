@@ -1123,6 +1123,47 @@ class ProcessWizard:
                             cfg["value"] = rules[0]["value"]
                 n["config"] = cfg
 
+            # ── Bug C: an approval approver/department must be a real routing
+            # target, not a {{form...}} value. The LLM sometimes routes an
+            # approval to a "department" named after a form selection (e.g. the
+            # category dropdown), which resolves to ZERO approvers. Detect a
+            # templated department name / assignee and fall back to the
+            # requester's direct manager (dynamic_manager). The legitimate
+            # "expression" assignee type stores its template in `expression`
+            # (not a department field), so it is never touched here. ──
+            _dept_keys = (
+                "assignee_department_name", "department_name",
+                "department", "approverDepartment", "approver_department",
+            )
+            for n in nodes:
+                if not isinstance(n, dict) or str(n.get("type", "")).strip().lower() != "approval":
+                    continue
+                cfg = n.get("config") if isinstance(n.get("config"), dict) else {}
+                bad = False
+                for k in _dept_keys:
+                    v = cfg.get(k)
+                    if isinstance(v, str) and "{{" in v:
+                        cfg.pop(k, None)
+                        bad = True
+                if isinstance(cfg.get("department_id"), str) and "{{" in cfg["department_id"]:
+                    cfg.pop("department_id", None)
+                    bad = True
+                for ak in ("assignees", "assignee_ids"):
+                    av = cfg.get(ak)
+                    if isinstance(av, list) and any(isinstance(a, str) and "{{" in a for a in av):
+                        cfg[ak] = []
+                        bad = True
+                if bad:
+                    cfg["assignee_source"] = "user_directory"
+                    cfg["directory_assignee_type"] = "dynamic_manager"
+                    if "assigneeType" in cfg:
+                        cfg["assigneeType"] = "dynamic_manager"
+                    n["config"] = cfg
+                    logger.info(
+                        "[Wizard] reconcile: approval %r routed to a form value -> reset to requester's direct manager",
+                        n.get("name"),
+                    )
+
             return process_def
         except Exception as e:
             logger.warning("[Wizard] _reconcile_structured_nodes failed (non-blocking): %s", e)
