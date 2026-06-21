@@ -12956,7 +12956,7 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                 result = ConversationService.add_message(conversation.id, {
                     'id': user_msg.id,
                     'role': 'user',
-                    'content': request.message
+                    'content': _pii_redact_if(request.message, getattr(agent, 'guardrails', None))
                 }, org_id, user_id)
                 if not result:
                     print(f"⚠️ [STREAM] Failed to persist user message to DB (conv={conversation.id[:8]})")
@@ -13177,11 +13177,13 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                 system_prompt += f"\n**FOCUS ON:** {', '.join(g.focus_topics)}"
             
             if g.pii_protection:
-                system_prompt += "\n**PRIVACY:** Don't ask for or repeat sensitive personal info"
-            
-            # Response length
-            length_map = {'short': '1-2 paragraphs MAX', 'medium': '2-3 paragraphs', 'long': 'Detailed as needed', 'unlimited': 'Thorough coverage'}
-            system_prompt += f"\n**RESPONSE LENGTH:** {length_map.get(g.max_length, '2-3 paragraphs')}"
+                system_prompt += "\n**PRIVACY:** Don't ask for or repeat sensitive personal info (cards, IDs, passwords)"
+
+            # Escalation (per-flag human handoff)
+            system_prompt += _guardrail_escalation_instruction(g)
+
+            # Response length (strong explicit limit)
+            system_prompt += f"\n**RESPONSE LENGTH:** {_guardrail_length_instruction(g)}"
             
             # Add verification reminder (ensures LLM re-checks instructions before responding)
             if INSTRUCTION_ENFORCER_AVAILABLE and InstructionEnforcer:
@@ -13431,7 +13433,7 @@ If user asks "مين مدير فادي" respond:
                 result = ConversationService.add_message(conversation.id, {
                     'id': assistant_msg.id,
                     'role': 'assistant',
-                    'content': final_content,
+                    'content': _pii_redact_if(final_content, getattr(agent, 'guardrails', None)),
                     'sources': sources
                 }, org_id, user_id)
                 if not result:
