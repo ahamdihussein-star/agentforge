@@ -91,12 +91,16 @@
     <!-- Create-wizard contrast: map hardcoded Tailwind grays/badges to theme tokens so
          text stays readable & consistent on every theme (enterprise, accessible). -->
     <style id="af-wizard-contrast">
+      /* Headings / prominent labels: full-strength primary text */
       #page-create .text-gray-300 { color: var(--text-primary) !important; }
-      #page-create .text-gray-400 { color: var(--text-secondary) !important; }
+      /* Helper / descriptive text: a NEUTRAL, desaturated tone (muted blend of the
+         primary text toward the card surface) so it reads as calm secondary text on
+         every theme — never a saturated blue that looks like a link. */
+      #page-create .text-gray-400 { color: color-mix(in srgb, var(--text-primary) 72%, var(--bg-card, #fff)) !important; }
       #page-create .text-gray-500,
-      #page-create .text-gray-600 { color: var(--text-muted) !important; }
-      #page-create .wizard-step-label { color: var(--text-secondary) !important; }
-      /* Step circle + active label keep full strength */
+      #page-create .text-gray-600 { color: color-mix(in srgb, var(--text-primary) 55%, var(--bg-card, #fff)) !important; }
+      #page-create .wizard-step-label { color: color-mix(in srgb, var(--text-primary) 60%, var(--bg-card, #fff)) !important; }
+      /* Active step label keeps full strength */
       #page-create .wizard-step.active .wizard-step-label,
       #page-create .wizard-step-label.active { color: var(--text-primary) !important; }
       /* Pill/badge text (e.g. "AI Generated") -> dark accent for strong contrast on tinted bg */
