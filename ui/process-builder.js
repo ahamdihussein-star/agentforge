@@ -7348,6 +7348,31 @@
             const edges = Array.isArray(def?.edges) ? def.edges : (Array.isArray(def?.connections) ? def.connections : []);
             if (!nodes.length) return def;
 
+            // Preferred: the dagre layered engine produces a crossing-minimised
+            // layout (each rank ordered to reduce edge crossings, ranks spaced so
+            // edges run in clear channels). Falls back to the built-in layout
+            // below if the library isn't available.
+            try {
+                if (window.dagre && edges.length) {
+                    const g = new dagre.graphlib.Graph();
+                    g.setGraph({ rankdir: 'TB', ranksep: 95, nodesep: 85, marginx: 60, marginy: 60 });
+                    g.setDefaultEdgeLabel(() => ({}));
+                    const idset = new Set(nodes.map(n => String(n.id)));
+                    nodes.forEach(n => g.setNode(String(n.id), { width: 150, height: 70 }));
+                    edges.forEach(e => {
+                        const f = String(e.from || e.source || ''), t = String(e.to || e.target || '');
+                        if (f && t && idset.has(f) && idset.has(t)) g.setEdge(f, t);
+                    });
+                    dagre.layout(g);
+                    const laid = nodes.map(n => {
+                        const gn = g.node(String(n.id));
+                        if (!gn) return { ...n };
+                        return { ...n, x: Math.round(gn.x / 20) * 20, y: Math.round(gn.y / 20) * 20 };
+                    });
+                    return { ...def, nodes: laid, edges: edges.map(e => ({ ...e })) };
+                }
+            } catch (_) { /* fall through to the built-in layered layout */ }
+
             const nodeById = new Map(nodes.map(n => [String(n.id), n]));
             const out = new Map();
             const inDeg = new Map();
