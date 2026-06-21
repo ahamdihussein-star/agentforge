@@ -948,6 +948,175 @@ class ProcessWizard:
             logger.warning("[Wizard] analyze_goal_to_tasks failed: %s", e)
         return []
 
+    @staticmethod
+    def _norm_name(s: Any) -> str:
+        return re.sub(r"[^a-z0-9]", "", str(s or "").lower())
+
+    def _infer_form_fields_from_task(self, task: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Best-effort: build form fields from a form task's instructions.
+        Only used as a fallback when a form node was generated with no fields."""
+        instructions = task.get("instructions") or []
+        if not isinstance(instructions, list):
+            instructions = [instructions]
+        texts = [str(x) for x in instructions if str(x).strip()]
+        # also consider the task name as a hint
+        fields: List[Dict[str, Any]] = []
+        seen_keys = set()
+
+        def _camel(label: str) -> str:
+            parts = re.split(r"[^A-Za-z0-9]+", (label or "").strip())
+            parts = [p for p in parts if p]
+            if not parts:
+                return ""
+            return parts[0].lower() + "".join(p[:1].upper() + p[1:].lower() for p in parts[1:])
+
+        for txt in texts:
+            low = txt.lower()
+            # select with explicit options: "... category from: A, B, C, Other"
+            m_sel = re.search(r"(?:select|choose|pick)\s+(?:the\s+|an?\s+)?(.+?)\s+from[:\s]+(.+)", txt, re.IGNORECASE)
+            if m_sel:
+                label = m_sel.group(1).strip().rstrip(".")
+                opts_raw = m_sel.group(2)
+                opts = [o.strip().rstrip(".") for o in re.split(r",|/|\bor\b", opts_raw) if o.strip()]
+                key = _camel(label) or "selection"
+                if key not in seen_keys and opts:
+                    seen_keys.add(key)
+                    fields.append({"name": key, "label": label.title(), "type": "select",
+                                   "required": True, "options": opts})
+                continue
+            # file upload: "upload the invoice PDF"
+            m_file = re.search(r"upload\s+(?:the\s+|an?\s+)?(.+)", txt, re.IGNORECASE)
+            if m_file and ("file" in low or "pdf" in low or "document" in low or "upload" in low):
+                label = m_file.group(1).strip().rstrip(".")
+                key = _camel(label) or "file"
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    fields.append({"name": key, "label": label.title(), "type": "file", "required": True})
+                continue
+            # generic entry: "enter/provide/input the vendor name"
+            m_ent = re.search(r"(?:enter|provide|input|fill in|specify|type)\s+(?:the\s+|an?\s+|your\s+)?(.+)", txt, re.IGNORECASE)
+            if m_ent:
+                label = m_ent.group(1).strip().rstrip(".")
+                # strip trailing helper words
+                label = re.sub(r"\b(value|details?|information)$", "", label, flags=re.IGNORECASE).strip() or label
+                key = _camel(label)
+                if key and key not in seen_keys:
+                    seen_keys.add(key)
+                    is_num = bool(re.search(r"amount|total|price|cost|qty|quantity|number|count|value", low))
+                    fields.append({"name": key, "label": label.title(),
+                                   "type": "number" if is_num else "text", "required": True})
+        if not fields:
+            # last resort so the form is never empty
+            fields.append({"name": "details", "label": "Details", "type": "text", "required": True})
+        return fields
+
+    def _reconcile_structured_nodes(
+        self,
+        process_def: Dict[str, Any],
+        tasks: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Deterministic safety net for structured (task-list) generation.
+
+        The user explicitly chose each task's type in the review UI, so that
+        type is authoritative. The LLM passes sometimes drift — demoting a
+        'form' task to an 'ai' node (dropping its fields) or emitting a
+        condition rule with an empty 'field'. This pass repairs both
+        deterministically. It is structured-mode only and additive: it never
+        touches nodes that don't match an explicit task.
+        """
+        try:
+            if not isinstance(process_def, dict) or not isinstance(tasks, list) or not tasks:
+                return process_def
+            nodes = process_def.get("nodes")
+            if not isinstance(nodes, list) or not nodes:
+                return process_def
+
+            # ── Bug A: a task explicitly typed 'form' must map to a 'form' node ──
+            form_tasks_by_name = {
+                self._norm_name(t.get("name")): t
+                for t in tasks
+                if isinstance(t, dict) and str(t.get("type", "")).strip().lower() == "form"
+            }
+            for n in nodes:
+                if not isinstance(n, dict):
+                    continue
+                ntype = str(n.get("type", "")).strip().lower()
+                key = self._norm_name(n.get("name"))
+                if key in form_tasks_by_name and ntype != "form":
+                    n["type"] = "form"
+                    cfg = n.get("config")
+                    if not isinstance(cfg, dict):
+                        cfg = {}
+                    if not cfg.get("fields"):
+                        cfg["fields"] = self._infer_form_fields_from_task(form_tasks_by_name[key])
+                    # strip AI-only leftovers that don't belong on a form
+                    for k in ("aiMode", "prompt", "instructions", "outputFields", "output_format"):
+                        cfg.pop(k, None)
+                    n["config"] = cfg
+                    logger.info(
+                        "[Wizard] reconcile: forced node %r back to type 'form' (task type is authoritative)",
+                        n.get("name"),
+                    )
+
+            # ── Bug B: condition rules must reference a real, non-empty field ──
+            # Gather a fallback field: the field used by the FIRST condition that
+            # already has one (cascades compare the same variable), else a
+            # produced variable whose name looks like an amount/total/value.
+            existing_cond_fields: List[str] = []
+            produced_vars: List[str] = []
+            for n in nodes:
+                if not isinstance(n, dict):
+                    continue
+                cfg = n.get("config") if isinstance(n.get("config"), dict) else {}
+                ov = n.get("output_variable") or cfg.get("output_variable")
+                if isinstance(ov, str) and ov.strip():
+                    produced_vars.append(ov.strip())
+                for f in (cfg.get("fields") or []):
+                    if isinstance(f, dict) and f.get("name"):
+                        produced_vars.append(str(f["name"]))
+                if str(n.get("type", "")).strip().lower() == "condition":
+                    for r in (cfg.get("rules") or []):
+                        if isinstance(r, dict) and str(r.get("field", "")).strip():
+                            existing_cond_fields.append(str(r["field"]).strip())
+
+            def _fallback_field() -> str:
+                if existing_cond_fields:
+                    return existing_cond_fields[0]
+                for v in produced_vars:
+                    if re.search(r"amount|total|price|cost|value|score|level|count", v, re.IGNORECASE):
+                        return v
+                return produced_vars[0] if produced_vars else ""
+
+            for n in nodes:
+                if not isinstance(n, dict) or str(n.get("type", "")).strip().lower() != "condition":
+                    continue
+                cfg = n.get("config") if isinstance(n.get("config"), dict) else {}
+                rules = cfg.get("rules")
+                if isinstance(rules, list):
+                    for r in rules:
+                        if isinstance(r, dict) and not str(r.get("field", "")).strip():
+                            fb = str(cfg.get("field", "")).strip() or _fallback_field()
+                            if fb:
+                                r["field"] = fb
+                                logger.info(
+                                    "[Wizard] reconcile: backfilled empty condition field on %r -> %r",
+                                    n.get("name"), fb,
+                                )
+                    # keep legacy field/operator/value mirrored from the first rule
+                    if rules and isinstance(rules[0], dict):
+                        if not str(cfg.get("field", "")).strip() and str(rules[0].get("field", "")).strip():
+                            cfg["field"] = rules[0]["field"]
+                        if cfg.get("operator") in (None, "") and rules[0].get("operator"):
+                            cfg["operator"] = rules[0]["operator"]
+                        if cfg.get("value") in (None, "") and rules[0].get("value") is not None:
+                            cfg["value"] = rules[0]["value"]
+                n["config"] = cfg
+
+            return process_def
+        except Exception as e:
+            logger.warning("[Wizard] _reconcile_structured_nodes failed (non-blocking): %s", e)
+            return process_def
+
     async def generate_from_structured_goal(
         self,
         goal: str,
