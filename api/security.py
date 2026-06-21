@@ -173,6 +173,8 @@ class UpdateUserRequest(BaseModel):
     timezone: Optional[str] = None
     language: Optional[str] = None
     department_id: Optional[str] = None
+    manager_id: Optional[str] = None  # Direct manager (org placement) — was only settable via the Org Chart before
+    employee_id: Optional[str] = None
     role_ids: Optional[List[str]] = None
     group_ids: Optional[List[str]] = None
     status: Optional[UserStatus] = None
