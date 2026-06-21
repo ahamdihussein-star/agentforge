@@ -7819,7 +7819,49 @@
                 const entryForm = getEntryFormNodeForTest(startNode);
                 if (entryForm) fieldDefs = getStartFieldDefs(entryForm);
             }
-            
+
+            // ── Cast roles: if the workflow has approval/notification steps,
+            // let the tester pick which real platform user plays each role
+            // (and who the requester is) so the test goes to actual people. ──
+            const roleNodes = (state.nodes || []).filter(n => n && (n.type === 'approval' || n.type === 'notification'));
+            let roleUsers = [];
+            if (roleNodes.length) {
+                roleUsers = await _loadTestRoleUsers();
+            }
+            window._testRoleUsers = roleUsers;
+            const _userOptions = (selectedId) => `
+                <option value="">${roleUsers.length ? 'Auto (resolve normally)' : 'No users with email found'}</option>
+                ${roleUsers.map(u => `<option value="${escapeHtml(u.id)}" ${selectedId === u.id ? 'selected' : ''}>${escapeHtml(u.name)} — ${escapeHtml(u.email)}</option>`).join('')}
+            `;
+            const _roleSelStyle = `width:100%; padding:10px; background:var(--bg-input); border:1.5px solid var(--input-border); border-radius:10px; color:var(--text-primary);`;
+            const castRolesHtml = (roleNodes.length && roleUsers.length) ? `
+                <div style="margin-top:18px; padding-top:16px; border-top:1px solid rgba(148,163,184,0.16);">
+                    <div style="font-size:14px; font-weight:600; margin-bottom:4px;">Cast the roles for this test</div>
+                    <p style="margin:0 0 12px; color:var(--pb-muted); font-size:12px;">Pick which real user plays each role. Leave on “Auto” to resolve the way the live process would.</p>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+                        <div style="min-width:0;">
+                            <label style="display:block; margin-bottom:7px; font-size:13px;">Who is submitting (the requester)</label>
+                            <select data-role-requester="1" style="${_roleSelStyle}">${_userOptions(null)}</select>
+                            <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">Drives “requester” messages, their manager, department and profile fields.</div>
+                        </div>
+                        ${roleNodes.map(n => {
+                            const kind = n.type === 'approval' ? 'Approver' : 'Recipient';
+                            const label = `${escapeHtml(n.name || (n.type === 'approval' ? 'Approval' : 'Notification'))} — ${kind}`;
+                            return `
+                                <div style="min-width:0;">
+                                    <label style="display:block; margin-bottom:7px; font-size:13px;">${label}</label>
+                                    <select data-role-node="${escapeHtml(n.id)}" style="${_roleSelStyle}">${_userOptions(null)}</select>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            ` : (roleNodes.length ? `
+                <div style="margin-top:18px; padding:12px; border:1px dashed rgba(148,163,184,0.26); border-radius:12px; color:var(--pb-muted); font-size:12px;">
+                    This workflow has approval/notification steps, but no platform users with an email address were found to assign. The test will resolve recipients automatically.
+                </div>
+            ` : '');
+
             // Create test modal (business-friendly)
             const modal = document.createElement('div');
             modal.id = 'test-workflow-modal';
@@ -7889,6 +7931,7 @@
                                     No input fields were found for this workflow.
                                 </div>
                             `}
+                            ${castRolesHtml}
                             <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:16px;padding-top:16px;border-top:1px solid rgba(148,163,184,0.16);">
                                 <button type="button" onclick="closeTestModal()" style="padding:10px 16px; background:var(--tb-btn-secondary-bg); border:1px solid var(--tb-btn-secondary-border); border-radius:10px; color:var(--tb-btn-secondary-text); cursor:pointer;">
                                     Cancel
