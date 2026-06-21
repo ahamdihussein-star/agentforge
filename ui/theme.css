@@ -762,12 +762,30 @@ a:focus-visible {
  * ================================================================== */
 [class*="bg-gradient-to-"] > .afi-w svg,
 [class*="bg-gradient-to-"] > svg,
+[class*="bg-gradient-to-"] > .afi-w svg *,
 .bg-purple-500 > .afi-w svg, .bg-blue-500 > .afi-w svg, .bg-green-500 > .afi-w svg,
 .bg-indigo-500 > .afi-w svg, .bg-violet-500 > .afi-w svg, .bg-teal-500 > .afi-w svg,
 .bg-pink-500 > .afi-w svg, .bg-red-500 > .afi-w svg, .bg-orange-500 > .afi-w svg,
 .bg-purple-600 > .afi-w svg, .bg-blue-600 > .afi-w svg, .bg-indigo-600 > .afi-w svg,
+.bg-violet-600 > .afi-w svg, .bg-teal-600 > .afi-w svg, .bg-green-600 > .afi-w svg,
+.bg-pink-600 > .afi-w svg, .bg-red-600 > .afi-w svg, .bg-orange-600 > .afi-w svg,
+/* direct-child manual SVGs (e.g. active tabs, buttons, badges) on saturated bg */
 .bg-purple-500 > svg, .bg-blue-500 > svg, .bg-green-500 > svg,
-.bg-indigo-500 > svg, .bg-violet-500 > svg, .bg-teal-500 > svg {
+.bg-indigo-500 > svg, .bg-violet-500 > svg, .bg-teal-500 > svg,
+.bg-pink-500 > svg, .bg-red-500 > svg, .bg-orange-500 > svg,
+.bg-purple-600 > svg, .bg-blue-600 > svg, .bg-green-600 > svg,
+.bg-indigo-600 > svg, .bg-violet-600 > svg, .bg-teal-600 > svg,
+.bg-pink-600 > svg, .bg-red-600 > svg, .bg-orange-600 > svg,
+.bg-purple-700 > svg, .bg-blue-700 > svg, .bg-indigo-700 > svg,
+.bg-purple-500 > svg *, .bg-purple-600 > svg *,
+.bg-blue-500 > svg *, .bg-blue-600 > svg *,
+.bg-indigo-500 > svg *, .bg-indigo-600 > svg *,
+.bg-green-500 > svg *, .bg-green-600 > svg *,
+.bg-violet-500 > svg *, .bg-violet-600 > svg *,
+.bg-teal-500 > svg *, .bg-teal-600 > svg *,
+.bg-red-500 > svg *, .bg-red-600 > svg *,
+.bg-pink-500 > svg *, .bg-pink-600 > svg *,
+.bg-orange-500 > svg *, .bg-orange-600 > svg * {
     stroke: #ffffff !important;
 }
 
