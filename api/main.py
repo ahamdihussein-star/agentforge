@@ -8680,8 +8680,34 @@ def _af_integration_view(agent_id, cfg, base):
 
 @app.get("/api/agents/{agent_id}/integration")
 async def get_agent_integration(agent_id: str, request: _AFRequest, current_user: User = Depends(get_current_user)):
+    # Auto-provision: every agent gets its own API key + endpoint + docs ready
+    # the moment its integration is viewed (no separate "enable" step needed).
     ints = _af_load_integrations()
-    return _af_integration_view(agent_id, ints.get(agent_id) or {}, _af_base_url(request))
+    cfg = ints.get(agent_id) or {}
+    changed = False
+    if not cfg.get("api_key"):
+        cfg["api_key"] = "af_pub_" + _af_secrets.token_hex(20)
+        cfg["created_at"] = datetime.utcnow().isoformat()
+        changed = True
+    if "enabled" not in cfg:
+        cfg["enabled"] = True
+        changed = True
+    try:
+        if not cfg.get("org_id"):
+            cfg["org_id"] = getattr(current_user, "org_id", None) or "org_default"; changed = True
+        if not cfg.get("owner_user_id"):
+            cfg["owner_user_id"] = str(current_user.id) if current_user else "system"; changed = True
+        if not cfg.get("owner_name"):
+            cfg["owner_name"] = getattr(current_user, "name", None) or getattr(current_user, "email", "Owner"); changed = True
+    except Exception:
+        pass
+    ag = app_state.agents.get(agent_id)
+    if ag is not None and not cfg.get("agent_type"):
+        cfg["agent_type"] = getattr(ag, "agent_type", "conversational"); changed = True
+    if changed:
+        ints[agent_id] = cfg
+        _af_save_integrations(ints)
+    return _af_integration_view(agent_id, cfg, _af_base_url(request))
 
 @app.post("/api/agents/{agent_id}/integration/enable")
 async def enable_agent_integration(agent_id: str, request: _AFRequest, current_user: User = Depends(get_current_user)):
