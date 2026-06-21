@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AgentForge - AI Agent Builder</title>
     <link rel="icon" type="image/png" href="/AgentForge_Logo.png">
-    <link rel="stylesheet" href="/ui/theme.css?v=20260621n">
+    <link rel="stylesheet" href="/ui/theme.css?v=20260621o">
     <link rel="stylesheet" href="/ui/index.css?v=20260621n">
 
     <script src="/ui/theme.js"></script>
@@ -135,6 +135,24 @@
       #modal-task [class*="text-blue-2"],
       #modal-task [class*="text-blue-3"],
       #modal-task [class*="text-blue-4"] { color: color-mix(in srgb, #2563eb 78%, #000) !important; }
+
+      /* ---- Access step (#wizard-step-4): calm, consistent surfaces ----
+         The cards/header use many decorative green/blue/purple inline gradients.
+         Neutralize them to one surface + a single accent for the selected state,
+         keeping only the semantic Allowed(green)/Denied(red) colors. */
+      #wizard-step-4 #wizard-access-control-section { background: var(--bg-card) !important; border: 1px solid var(--border-color) !important; }
+      #wizard-step-4 #wizard-access-control-section > div:first-child { background: var(--bg-card) !important; }
+      #wizard-step-4 .access-type-card { background: var(--bg-card) !important; border: 1.5px solid var(--border-color) !important; box-shadow: none !important; }
+      #wizard-step-4 .access-type-card.ac-selected { border-color: var(--accent-primary) !important; background: color-mix(in srgb, var(--accent-primary) 7%, var(--bg-card)) !important; }
+      #wizard-step-4 .access-type-card div[style*="gradient"] { background: color-mix(in srgb, var(--accent-primary) 12%, var(--bg-card)) !important; }
+      #wizard-step-4 .access-type-card svg { color: var(--accent-primary) !important; }
+      #wizard-step-4 [class*="bg-purple-500"] { background: color-mix(in srgb, var(--accent-primary) 16%, transparent) !important; color: var(--accent-primary) !important; }
+      #wizard-step-4 [class*="bg-blue-500"] { background: color-mix(in srgb, var(--accent-primary) 14%, transparent) !important; }
+      #wizard-step-4 [class*="border-purple"], #wizard-step-4 [class*="bg-purple-900"], #wizard-step-4 [class*="bg-blue-900"] { border-color: var(--border-color) !important; background: var(--bg-secondary) !important; }
+      #wizard-step-4 #ac-owner-badge { background: color-mix(in srgb, var(--accent-primary) 18%, transparent) !important; color: var(--accent-primary) !important; }
+      /* selected-state check stays solid accent with white tick (after the faint rule above) */
+      #wizard-step-4 .access-check { background: var(--accent-primary) !important; }
+      #wizard-step-4 .access-check svg { color: #ffffff !important; }
     </style>
 </head>
 <body class="text-white" style="height:100vh;overflow:hidden;margin:0;background:var(--bg-primary);color:var(--text-primary);">
