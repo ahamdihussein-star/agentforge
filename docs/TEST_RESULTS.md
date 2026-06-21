@@ -164,6 +164,15 @@ Exercised every tool via "Try this API" / agent use:
 - **ZZ Capture Test** (API) — test garbage, no description. Cleanup candidate.
 Net: no NEW functional tool-execution bug beyond the redirect class (already fixed via follow_redirects across all paths). Remaining tool issues are **data quality** (misnamed Bitcoin Price) + **cleanup** (2 ZZ tools) — deletion left to Ahmed (I don't delete data autonomously). The Tools page has "Cleanup" + "Delete All" buttons for this.
 
+## ✅✅ END-USER PORTAL process run VERIFIED end-to-end (real engine + manager routing)
+Published the Employee Expense process → it appeared in the **end-user portal** (`/chat`) under **Process AI Agents (1)** with an accurate auto-generated Overview. Started it as an end user, uploaded the 800 receipt, claimed 800, submitted → **"Request Submitted ✅ Reference #4, being processed"** (real engine via `POST /process/execute`, not the builder simulation).
+**My Requests → Request #4** shows:
+- Status **"Waiting for Input"** — awaiting approver.
+- **"Waiting with: Manager Approval Required → Rania ElHadidi (rania.om.sa@gmail.com)" tagged "Direct manager"** ← the approval resolved to the requester's direct manager, by name + email.
+- **Progress tracker**: Start ✅ → Validate Receipt And Amount ✅ → Determine Approval Path ✅ → Manager Approval Required (current).
+- The OLDER requests in the list show **"Error"** — those are the pre-fix runs (301 / no-manager). The NEW request succeeding is direct proof the `follow_redirects` fixes + org-placement fix worked.
+This closes Ahmed's ask: a process built in the platform, run from the end-user portal, routes the approval to the correct manager. (Role-based routing still untested; needs a process with a role-assignee step.)
+
 ## ✅ Process approval routing VERIFIED (manager path)
 After giving the admin an org placement (Finance dept, manager = Rania ElHadidi), re-ran the expense process @ 800 → no pre-flight error, AI validated 800, decision took the manager branch, and **Manager Approval resolved to the admin's direct manager** (Manager ID + Finance dept shown) with a live Approve/Reject gate. Confirms `dynamic_manager` works once org placement exists — the recurring failure was purely the **seeding gap**. (Role-based routing still to test; post-approval "Record Outcome" still hits the dead ZZ tool.)
 
