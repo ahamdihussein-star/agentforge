@@ -188,7 +188,7 @@
                 return;
             }
             
-            // Render Workflow Agents (different card design)
+            // Render Process Agents (different card design)
             if (workflowAgents.length > 0) {
                 workflowSection.classList.remove('hidden');
                 workflowGrid.innerHTML = workflowAgents.map(a => `
@@ -204,7 +204,7 @@
                                 <div class="flex-1 min-w-0">
                                     <h3 class="font-semibold text-white af-clamp-2">${a.name}</h3>
                                     <div class="flex items-center gap-2 mt-1">
-                                        <span class="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">Workflow</span>
+                                        <span class="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">Process</span>
                                         <span class="text-xs px-2 py-0.5 rounded-full ${a.status === 'published' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}">${a.status}</span>
                                     </div>
                                 </div>

@@ -2576,7 +2576,7 @@ const API='';
                         sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(procDef));
                         sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
                             goal: procDef.wizard_goal || '',
-                            name: procDef.name || tpl.title || 'My Workflow',
+                            name: procDef.name || tpl.title || 'My Process',
                             animate: true,
                             wizard_goal: procDef.wizard_goal || '',
                             wizard_tasks: Array.isArray(procDef.wizard_tasks) ? procDef.wizard_tasks : []
@@ -2786,7 +2786,7 @@ const API='';
         try { loadDynamicProcessTemplates(); } catch (_) { /* ignore */ }
         
         // =========================================================================
-        // AGENT TYPE SELECTION (Conversational vs Workflow)
+        // AGENT TYPE SELECTION (Conversational vs Process)
         // =========================================================================
         
         let selectedAgentType = 'conversational'; // Default
@@ -2954,7 +2954,7 @@ const API='';
         async function proc_suggestTasks() {
             const goal = document.getElementById('w-process-goal')?.value.trim();
             if (!goal) {
-                showToast('Please describe your workflow goal first.', 'warning');
+                showToast('Please describe your process goal first.', 'warning');
                 return;
             }
 
@@ -3287,7 +3287,7 @@ const API='';
             window._setGeneratingLabels = _setGeneratingLabels;
         } catch (_) { /* ignore */ }
         
-        // Generate Process/Workflow Configuration using AI
+        // Generate Process/Process Configuration using AI
         function _resetGeneratingSteps() {
             const steps = ['gen-step-1', 'gen-step-2', 'gen-step-3', 'gen-step-4', 'gen-step-5'];
             steps.forEach((id, idx) => {
@@ -3329,17 +3329,17 @@ const API='';
                     ]
                 },
                 process: {
-                    title: 'Building Your Workflow...',
-                    status0: 'Designing your workflow...',
+                    title: 'Building Your Process...',
+                    status0: 'Designing your process...',
                     steps: [
-                        'Understanding your workflow goal',
+                        'Understanding your process goal',
                         'Designing the steps',
                         'Preparing forms & data fields',
                         'Setting approvals & messages',
                         'Finalizing the layout',
                     ],
                     statuses: [
-                        'Understanding your workflow goal...',
+                        'Understanding your process goal...',
                         'Designing the steps...',
                         'Preparing forms & data fields...',
                         'Setting approvals & messages...',
@@ -3427,7 +3427,7 @@ const API='';
         async function generateProcessConfig() {
             const goal = document.getElementById('w-process-goal')?.value.trim();
             if(!goal) {
-                showToast('Please describe what your workflow should do.', 'warning');
+                showToast('Please describe what your process should do.', 'warning');
                 return;
             }
             
@@ -3502,7 +3502,7 @@ const API='';
                             sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(data.workflow));
                             sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
                                 goal: goal,
-                                name: data.workflow.name || 'My Workflow',
+                                name: data.workflow.name || 'My Process',
                                 animate: true,
                                 wizard_goal: goal,
                                 wizard_tasks: wizard._structuredTasks || []
@@ -3525,17 +3525,17 @@ const API='';
                     }
 
                     if (hasWorkflow) {
-                        document.getElementById('generating-status').textContent = 'Opening your workflow builder...';
+                        document.getElementById('generating-status').textContent = 'Opening your process builder...';
                         setTimeout(() => {
                             window.location.href = '/ui/process-builder.html?draft=1';
                         }, 250);
                     } else {
-                        showToast(data.detail || 'Could not create the workflow. Please try again.', 'error');
+                        showToast(data.detail || 'Could not create the process. Please try again.', 'error');
                         document.getElementById('wizard-generating').classList.add('hidden');
                         document.getElementById('wizard-step-0').classList.remove('hidden');
                     }
                 } else {
-                    showToast(data.detail || 'Could not create the workflow. Please try again.', 'error');
+                    showToast(data.detail || 'Could not create the process. Please try again.', 'error');
                     document.getElementById('wizard-generating').classList.add('hidden');
                     document.getElementById('wizard-step-0').classList.remove('hidden');
                     try { anim.stop(); } catch (_) {}
@@ -3598,8 +3598,8 @@ const API='';
                 ? 'A Few Things Are Needed First'
                 : 'Almost There!';
             const subtext = isBlocking
-                ? 'Before we can build your workflow, the following items need to be set up on the platform. Once they\'re ready, come back and try again.'
-                : 'Your workflow has been created successfully. To make sure everything runs smoothly, the following items should be set up on the platform.';
+                ? 'Before we can build your process, the following items need to be set up on the platform. Once they\'re ready, come back and try again.'
+                : 'Your process has been created successfully. To make sure everything runs smoothly, the following items should be set up on the platform.';
 
             let actionsHtml = '';
             if (isBlocking) {
@@ -3631,7 +3631,7 @@ const API='';
                         </button>
                     </div>
                     <p style="text-align:center;font-size:12px;color:var(--text-secondary);margin-top:14px;">
-                        You can also set these up later — your workflow draft has been saved.
+                        You can also set these up later — your process draft has been saved.
                     </p>`;
             }
 
@@ -3668,7 +3668,7 @@ const API='';
             if (genPanel) {
                 genPanel.innerHTML = `
                     <div style="max-width:480px;margin:0 auto;padding:60px 0;text-align:center;">
-                        <div id="generating-status" style="font-size:15px;color:var(--text-secondary);margin-bottom:8px;">Building your workflow...</div>
+                        <div id="generating-status" style="font-size:15px;color:var(--text-secondary);margin-bottom:8px;">Building your process...</div>
                         <p style="font-size:12px;color:var(--text-tertiary,var(--text-secondary));opacity:0.7;">Prerequisites check was skipped</p>
                     </div>`;
             }
@@ -3692,7 +3692,7 @@ const API='';
                         sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(data.workflow));
                         sessionStorage.setItem('agentforge_process_builder_draft_meta', JSON.stringify({
                             goal: payload.goal,
-                            name: data.workflow.name || 'My Workflow',
+                            name: data.workflow.name || 'My Process',
                             animate: true,
                             wizard_goal: payload.goal,
                             wizard_tasks: payload.tasks || []
@@ -3710,14 +3710,14 @@ const API='';
                     if (data.setup_required && data.setup_required.length) {
                         _showSetupGuide(data.setup_required, true);
                     } else {
-                        document.getElementById('generating-status').textContent = 'Opening your workflow builder...';
+                        document.getElementById('generating-status').textContent = 'Opening your process builder...';
                         setTimeout(() => {
                             window.location.href = '/ui/process-builder.html?draft=1';
                         }, 250);
                     }
                 } else {
                     try { anim.stop(); } catch (_) {}
-                    showToast(data.detail || 'Could not create the workflow. Please try again.', 'error');
+                    showToast(data.detail || 'Could not create the process. Please try again.', 'error');
                     _goBackToWizard();
                 }
             } catch (e) {
@@ -3768,20 +3768,20 @@ const API='';
                             <div class="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center mb-4 text-4xl">
                                 ✅
                             </div>
-                            <h2 class="text-2xl font-bold mb-2">Your Workflow is Ready!</h2>
-                            <p class="text-gray-400">${workflow.name || 'Workflow'} has been created with ${workflow.nodes?.length || 0} steps</p>
+                            <h2 class="text-2xl font-bold mb-2">Your Process is Ready!</h2>
+                            <p class="text-gray-400">${workflow.name || 'Process'} has been created with ${workflow.nodes?.length || 0} steps</p>
                         </div>
                         
                         <div class="card rounded-xl p-6 mb-6 bg-gray-800/50">
-                            <h3 class="font-semibold mb-4">Workflow Steps:</h3>
+                            <h3 class="font-semibold mb-4">Process Steps:</h3>
                             <div class="space-y-3">
                                 ${nodesHtml || '<p class="text-gray-500">No steps defined</p>'}
                             </div>
                         </div>
                         
                         <div class="card rounded-xl p-6 mb-6 bg-gray-800/50">
-                            <label class="text-sm text-gray-400 mb-2 block">Workflow Name</label>
-                            <input type="text" id="process-name" class="input-field w-full rounded-lg px-4 py-3 bg-gray-700 border border-gray-600" value="${workflow.name || 'My Workflow'}">
+                            <label class="text-sm text-gray-400 mb-2 block">Process Name</label>
+                            <input type="text" id="process-name" class="input-field w-full rounded-lg px-4 py-3 bg-gray-700 border border-gray-600" value="${workflow.name || 'My Process'}">
                         </div>
                         
                         <div class="flex gap-4">
@@ -3831,7 +3831,7 @@ const API='';
         
         // Save Process
         async function saveProcess() {
-            const name = document.getElementById('process-name')?.value || 'My Workflow';
+            const name = document.getElementById('process-name')?.value || 'My Process';
             const workflow = wizard.processDefinition;
             workflow.name = name;
             
@@ -3854,7 +3854,7 @@ const API='';
                 if (response.ok) {
                     const data = await response.json();
                     closeProcessEditorPreview(); // Close the modal
-                    showToast('Workflow saved successfully!', 'success');
+                    showToast('Process saved successfully!', 'success');
                     navigate('agents'); // Go to agents list
                 } else {
                     const error = await response.json();

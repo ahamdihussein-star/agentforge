@@ -1328,7 +1328,7 @@
                 openWorkflowRunModal(agentId);
                 return;
             }
-            // Schedule/webhook (automation) → admins can run now; others go to Workflows/Runs
+            // Schedule/webhook (automation) → admins can run now; others go to Processes/Runs
             if (trig.triggerType === 'schedule' || trig.triggerType === 'webhook') {
                 if (isPortalAdmin()) {
                     runWorkflowDirectly(agentId);
@@ -2575,7 +2575,7 @@
                 renderRequests();
                 _setWorkTabBadges();
                 if (selectedExecutionId) {
-                    // Keep the detail pane in sync (e.g., after starting a workflow)
+                    // Keep the detail pane in sync (e.g., after starting a process)
                     refreshSelectedRequest();
                 }
                 return myRequests;
@@ -2699,7 +2699,7 @@
                 `;
             }).join('');
 
-            // Auto-select if we have a target execution id (e.g., after starting a workflow)
+            // Auto-select if we have a target execution id (e.g., after starting a process)
             if (selectedExecutionId && !filtered.some(x => String(x.id) === String(selectedExecutionId))) {
                 // keep selection; detail refresh will handle not-found
             } else if (!selectedExecutionId && filtered.length) {

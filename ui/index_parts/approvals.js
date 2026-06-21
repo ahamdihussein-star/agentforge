@@ -223,8 +223,8 @@
                             <div class="flex items-center gap-3">
                                 <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-2xl">✏️</div>
                                 <div>
-                                    <h3 id="process-editor-title" class="text-lg font-bold">Edit Workflow</h3>
-                                    <p class="text-sm text-gray-400">Modify workflow steps and configuration</p>
+                                    <h3 id="process-editor-title" class="text-lg font-bold">Edit Process</h3>
+                                    <p class="text-sm text-gray-400">Modify process steps and configuration</p>
                                 </div>
                             </div>
                             <button onclick="closeProcessEditor()" class="text-gray-400 hover:text-white text-2xl px-2">✕</button>
@@ -235,19 +235,19 @@
                             <!-- Basic Info -->
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                                 <div>
-                                    <label class="text-sm text-gray-400 mb-1 block">Workflow Name</label>
-                                    <input type="text" id="process-editor-name" class="input-field w-full rounded-lg px-4 py-3" placeholder="My Workflow">
+                                    <label class="text-sm text-gray-400 mb-1 block">Process Name</label>
+                                    <input type="text" id="process-editor-name" class="input-field w-full rounded-lg px-4 py-3" placeholder="My Process">
                                 </div>
                                 <div>
                                     <label class="text-sm text-gray-400 mb-1 block">Goal / Description</label>
-                                    <input type="text" id="process-editor-goal" class="input-field w-full rounded-lg px-4 py-3" placeholder="What does this workflow do?">
+                                    <input type="text" id="process-editor-goal" class="input-field w-full rounded-lg px-4 py-3" placeholder="What does this process do?">
                                 </div>
                             </div>
                             
-                            <!-- Workflow Steps -->
+                            <!-- Process Steps -->
                             <div class="mb-6">
                                 <div class="flex items-center justify-between mb-4">
-                                    <h4 class="font-semibold flex items-center gap-2">🔄 Workflow Steps</h4>
+                                    <h4 class="font-semibold flex items-center gap-2">🔄 Process Steps</h4>
                                     <button onclick="addWorkflowNode()" class="text-sm px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition">
                                         + Add Step
                                     </button>
@@ -351,7 +351,7 @@
             document.body.insertAdjacentHTML('beforeend', modalHtml);
         }
         
-        // Render workflow nodes in editor
+        // Render process nodes in editor
         function renderWorkflowNodes(workflow) {
             const container = document.getElementById('workflow-nodes-container');
             const nodes = workflow.nodes || [];
@@ -423,7 +423,7 @@
             }).join('');
         }
         
-        // Add new workflow node
+        // Add new process node
         function addWorkflowNode() {
             const panel = document.getElementById('add-node-panel');
             panel.classList.toggle('hidden');
@@ -636,7 +636,7 @@
             approvalConfigNodeIndex = -1;
         }
         
-        // Test the workflow
+        // Test the process
         function testWorkflow() {
             if (!editingProcessAgent) return;
             closeProcessEditor();
@@ -651,7 +651,7 @@
             const goal = document.getElementById('process-editor-goal').value.trim();
             
             if (!name) {
-                showToast('Please enter a workflow name', 'error');
+                showToast('Please enter a process name', 'error');
                 return;
             }
             
@@ -670,7 +670,7 @@
                 });
                 
                 if (response.ok) {
-                    showToast('Workflow saved!', 'success');
+                    showToast('Process saved!', 'success');
                     closeProcessEditor();
                     loadAgents();
                 } else {
@@ -689,7 +689,7 @@
             editingProcessAgent = null;
         }
         
-        // Open Visual Workflow Builder
+        // Open Visual Process Builder
         function openVisualBuilder() {
             // So the new tab can read the token: copy sessionStorage → localStorage if needed
             const sessionToken = sessionStorage.getItem('agentforge_token');
@@ -704,13 +704,13 @@
             }
         }
         
-        // Show AI Workflow Input
+        // Show AI Process Input
         function showAIWorkflowInput() {
             document.getElementById('ai-workflow-input').classList.remove('hidden');
             document.getElementById('workflow-templates').classList.add('hidden');
         }
         
-        // Hide AI Workflow Input
+        // Hide AI Process Input
         function hideAIWorkflowInput() {
             document.getElementById('ai-workflow-input').classList.add('hidden');
             document.getElementById('workflow-templates').classList.remove('hidden');

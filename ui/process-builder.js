@@ -337,7 +337,7 @@
                     sessionStorage.setItem('agentforge_process_builder_draft', JSON.stringify(workflow));
                     const _metaToSave = {
                         goal: meta.goal || '',
-                        name: meta.name || workflow.name || 'My Workflow',
+                        name: meta.name || workflow.name || 'My Process',
                         animate: true,
                         wizard_goal: meta.wizard_goal || meta.goal || '',
                         wizard_tasks: Array.isArray(meta.wizard_tasks) ? meta.wizard_tasks : []
@@ -346,9 +346,9 @@
                     _savedWizardMeta = _metaToSave;
                 } catch (_) { /* ignore */ }
                 // Start cinematic build immediately
-                try { startBuildAnimation(workflow, { goal: meta.goal || '', name: meta.name || workflow.name || 'My Workflow' }); } catch (e) {
+                try { startBuildAnimation(workflow, { goal: meta.goal || '', name: meta.name || workflow.name || 'My Process' }); } catch (e) {
                     // Fallback: just apply definition
-                    try { applyWorkflowDefinition(workflow, { goal: meta.goal || '', name: meta.name || workflow.name || 'My Workflow' }); } catch (_) {}
+                    try { applyWorkflowDefinition(workflow, { goal: meta.goal || '', name: meta.name || workflow.name || 'My Process' }); } catch (_) {}
                 }
             });
         }
@@ -3774,7 +3774,7 @@
                                 <span style="font-size:12px;color:var(--pb-muted);">hours</span>
                             </div>
                             <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;line-height:1.45;">
-                                If the deadline passes with no decision, the approval is marked as expired so the workflow doesn’t stay stuck forever.
+                                If the deadline passes with no decision, the approval is marked as expired so the process doesn’t stay stuck forever.
                             </div>
                         </div>
                         <div class="property-group" style="border-top:1px solid var(--pb-border);padding-top:12px;margin-top:8px;">
@@ -4691,7 +4691,7 @@
                                                     </button>
                                                 </div>
                                                 <div style="font-size:11px;color:var(--pb-muted);margin-top:6px;">
-                                                    These options will appear to end users when running the workflow.
+                                                    These options will appear to end users when running the process.
                                                 </div>
                                             </div>
                                         ` : ''}
@@ -4872,7 +4872,7 @@
                         <div class="property-group">
                             <label class="property-label">Which process to run?</label>
                             <div style="font-size:11px;color:var(--pb-muted);margin-bottom:6px;">
-                                Select a published process to run as a sub-step of this workflow.
+                                Select a published process to run as a sub-step of this process.
                             </div>
                             <select class="property-select" onchange="updateNodeConfig('${node.id}', 'processId', this.value); var sel=this.options[this.selectedIndex]; updateNodeConfig('${node.id}', '_processName', sel.text); showProperties(state.nodes.find(n=>n.id==='${node.id}'));">
                                 <option value="">-- Select a published process --</option>
@@ -4960,7 +4960,7 @@
                         <div style="padding:12px;background:color-mix(in srgb,#22c55e 8%,transparent);border:1px solid color-mix(in srgb,#22c55e 20%,transparent);border-radius:10px;margin-bottom:12px;">
                             <div style="font-size:12px;color:var(--pb-text);line-height:1.6;">
                                 <strong>🏁 Process complete</strong><br>
-                                This marks the end of the workflow. All collected data and results from previous steps are saved automatically.
+                                This marks the end of the process. All collected data and results from previous steps are saved automatically.
                             </div>
                         </div>
                         <div class="property-group">
@@ -7115,11 +7115,11 @@
                     if (String(draft).toLowerCase() === 'wait') {
                         // Keep canvas empty and show a friendly waiting overlay
                         try { _clearCanvasState(); } catch (_) {}
-                        try { _showBuildOverlay('Generating your workflow…', 8, ''); } catch (_) {}
+                        try { _showBuildOverlay('Generating your process…', 8, ''); } catch (_) {}
                         try { startDraftWaitPolling(); } catch (_) {}
                         return;
                     }
-                    // Otherwise fallback to a new workflow
+                    // Otherwise fallback to a new process
                     createNode('trigger', 400, 100);
                 }
             } else {
@@ -7164,7 +7164,7 @@
                 let meta = {};
                 try { meta = metaRaw ? JSON.parse(metaRaw) : {}; } catch(_) { meta = {}; }
                 const goal = meta.goal || draft.description || '';
-                const name = draft.name || meta.name || 'My Workflow';
+                const name = draft.name || meta.name || 'My Process';
                 const shouldAnimate = meta.animate === true || /[?&]animate=1/.test(window.location.search || '');
                 if (shouldAnimate) {
                     // Save wizard meta to memory BEFORE clearing sessionStorage
@@ -7227,7 +7227,7 @@
         }
 
         function applyWorkflowDefinition(def, opts = {}) {
-            const name = opts.name || def?.name || 'My Workflow';
+            const name = opts.name || def?.name || 'My Process';
             const goal = opts.goal || opts.originalGoal || '';
             document.getElementById('workflow-name').value = name;
             if (goal) state.goal = goal;
@@ -7600,7 +7600,7 @@
             nodeIdCounter = maxNum + 1;
 
             state.goal = (opts.goal || state.goal || '').trim();
-            document.getElementById('workflow-name').value = (opts.name || def?.name || 'My Workflow');
+            document.getElementById('workflow-name').value = (opts.name || def?.name || 'My Process');
             _updateDescriptionField();
 
             _resetViewForBuild();
@@ -7702,7 +7702,7 @@
                 if (!response.ok) throw new Error('Failed to load');
                 
                 const agent = await response.json();
-                document.getElementById('workflow-name').value = agent.name || 'My Workflow';
+                document.getElementById('workflow-name').value = agent.name || 'My Process';
                 _updateDescriptionField();
                 if (agent.goal) state.goal = agent.goal;
                 
@@ -7710,7 +7710,7 @@
 
                 if (agent.process_definition) {
                     applyWorkflowDefinition(agent.process_definition, {
-                        name: agent.name || 'My Workflow',
+                        name: agent.name || 'My Process',
                         goal: agent.goal || state.goal || ''
                     });
                 }
@@ -7724,13 +7724,13 @@
                 }
             } catch (e) {
                 console.error('Load error:', e);
-                pbToast('Could not load this workflow. Please refresh and try again.', 'error');
+                pbToast('Could not load this process. Please refresh and try again.', 'error');
             }
         }
         
         async function saveWorkflow() {
             const name = document.getElementById('workflow-name').value;
-            const goal = (state.goal && String(state.goal).trim()) ? String(state.goal).trim() : (name || 'Workflow automation');
+            const goal = (state.goal && String(state.goal).trim()) ? String(state.goal).trim() : (name || 'Process automation');
             const def = {
                 nodes: state.nodes,
                 edges: state.connections
@@ -7792,7 +7792,7 @@
                     window.history.replaceState({}, '', '?agent=' + state.agentId);
                 }
                 
-                pbToast('Workflow saved.', 'success');
+                pbToast('Process saved.', 'success');
             } catch (e) {
                 console.error('Save error:', e);
                 pbToast(String(e.message || 'Could not save workflow.'), 'error');
@@ -7802,11 +7802,11 @@
         async function saveWorkflowAsTemplate() {
             const token = getAuthToken();
             if (!token) {
-                pbAlert('Please sign in first to save this workflow as a template.', { title: 'Sign in required', buttonText: 'OK' });
+                pbAlert('Please sign in first to save this process as a template.', { title: 'Sign in required', buttonText: 'OK' });
                 return;
             }
 
-            const workflowName = String(document.getElementById('workflow-name')?.value || 'Workflow').trim() || 'Workflow';
+            const workflowName = String(document.getElementById('workflow-name')?.value || 'Process').trim() || 'Process';
             const templateName = await (window.afPrompt ? window.afPrompt(
                 'Enter a template name. This will be shown when creating a new process agent.',
                 {
@@ -7913,7 +7913,7 @@
                     throw new Error(errMsg);
                 }
                 
-                pbToast('Workflow published.', 'success');
+                pbToast('Process published.', 'success');
             } catch (e) {
                 console.error('Publish error:', e);
                 pbToast(String(e.message || 'Could not publish workflow.'), 'error');
@@ -8052,7 +8052,7 @@
                 if (entryForm) fieldDefs = getStartFieldDefs(entryForm);
             }
 
-            // ── Cast roles: if the workflow has approval/notification steps,
+            // ── Cast roles: if the process has approval/notification steps,
             // let the tester pick which real platform user plays each role
             // (and who the requester is) so the test goes to actual people. ──
             const roleNodes = (state.nodes || []).filter(n => n && (n.type === 'approval' || n.type === 'notification'));
@@ -8105,8 +8105,8 @@
             modal.addEventListener('click', (e) => { if (e.target === modal) closeTestModal(); });
 
             const subtitle = fieldDefs.length
-                ? 'Fill the fields and we’ll play back the workflow path on the canvas.'
-                : 'No information is required. Click “Run test” to play back the workflow path on the canvas.';
+                ? 'Fill the fields and we’ll play back the process path on the canvas.'
+                : 'No information is required. Click “Run test” to play back the process path on the canvas.';
             
             modal.innerHTML = `
                 <div style="background:var(--pb-panel); color:var(--pb-text); border:1px solid rgba(148,163,184,0.18); border-radius:16px; width:720px; max-width:100%; max-height:86vh; overflow:auto;">
@@ -8160,7 +8160,7 @@
                                 </div>
                             ` : `
                                 <div style="padding:12px 12px; border:1px dashed rgba(148,163,184,0.26); border-radius:12px; color:var(--pb-muted); font-size:13px;">
-                                    No input fields were found for this workflow.
+                                    No input fields were found for this process.
                                 </div>
                             `}
                             ${castRolesHtml}
@@ -8732,8 +8732,8 @@
         async function _ensureWorkflowSavedSilently() {
             const token = getAuthToken();
             if (!token) throw new Error('Please sign in first.');
-            const name = document.getElementById('workflow-name')?.value || 'Workflow';
-            const goal = (state.goal && String(state.goal).trim()) ? String(state.goal).trim() : (name || 'Workflow automation');
+            const name = document.getElementById('workflow-name')?.value || 'Process';
+            const goal = (state.goal && String(state.goal).trim()) ? String(state.goal).trim() : (name || 'Process automation');
             const def = { nodes: state.nodes, edges: state.connections };
             const method = state.agentId ? 'PUT' : 'POST';
             const url = state.agentId ? '/api/agents/' + state.agentId : '/api/agents';
@@ -8862,12 +8862,12 @@
             const status = String(execution?.status || '').toLowerCase();
             const badge = _engineStatusBadge(status);
             const headline = status === 'completed'
-                ? 'Workflow completed successfully.'
+                ? 'Process completed successfully.'
                 : status === 'failed'
                     ? (execution?.error_message || execution?.error?.message || 'The workflow failed.')
                     : status === 'waiting'
-                        ? 'Workflow is waiting for approval.'
-                        : 'Workflow is running.';
+                        ? 'Process is waiting for approval.'
+                        : 'Process is running.';
 
             // Track if any step has a non-user-fixable error (for IT guidance banner)
             let _hasNonFixableError = false;
@@ -9169,7 +9169,7 @@
             try {
                 await _ensureWorkflowSavedSilently();
             } catch (e) {
-                pbToast(String(e?.message || 'Could not save the workflow for testing.'), 'error');
+                pbToast(String(e?.message || 'Could not save the process for testing.'), 'error');
                 return;
             }
 
@@ -9223,7 +9223,7 @@
                 if (!executionId) throw new Error('No execution id returned.');
             } catch (e) {
                 try { runningModal.remove(); } catch (_) {}
-                pbToast(String(e?.message || 'Could not start the workflow.'), 'error');
+                pbToast(String(e?.message || 'Could not start the process.'), 'error');
                 return;
             }
 
@@ -9819,7 +9819,7 @@
             const maxSteps = 30;
             let steps = 0;
             let current = startNode;
-            let outcome = { status: 'completed', headline: 'Workflow completed successfully.' };
+            let outcome = { status: 'completed', headline: 'Process completed successfully.' };
             let lastPlaybackIndex = 0;
 
             const playNewTrace = async () => {
@@ -10134,13 +10134,13 @@
                         if (decision === 'approved') {
                             // Update the message for the report (no need to add a new node in the trace)
                             if (trace[approvalTraceIndex]) {
-                                trace[approvalTraceIndex].message = `Approved. Continuing the workflow.`;
+                                trace[approvalTraceIndex].message = `Approved. Continuing the process.`;
                                 trace[approvalTraceIndex].status_key = 'completed';
                             }
                             // Continue normally (use the default outgoing edge)
                         } else if (decision === 'rejected') {
                             if (trace[approvalTraceIndex]) {
-                                trace[approvalTraceIndex].message = `Rejected. The workflow will stop here.`;
+                                trace[approvalTraceIndex].message = `Rejected. The process will stop here.`;
                                 trace[approvalTraceIndex].status_key = 'failed';
                             }
                             outcome = {
@@ -10179,7 +10179,7 @@
                     edgeType: nextConn.type || null,
                     type: next.type,
                     title: next.name || 'Step',
-                    message: (next.type === 'end') ? 'Reached the end of the workflow.' : ''
+                    message: (next.type === 'end') ? 'Reached the end of the process.' : ''
                 });
                 current = next;
                 if (current.type === 'end') break;
@@ -10188,7 +10188,7 @@
             // Check if any trace steps had warnings (unresolvable conditions, etc.)
             const hasWarnings = trace.some(t => t.status_key === 'warning' || (t.message && t.message.includes('⚠️')));
             if (hasWarnings && outcome.status === 'completed') {
-                outcome.headline = 'Workflow completed (with warnings). Some steps could not be fully evaluated in simulation mode — use "Run using real engine" for accurate results.';
+                outcome.headline = 'Process completed (with warnings). Some steps could not be fully evaluated in simulation mode — use "Run using real engine" for accurate results.';
             }
 
             // Auto-play on the canvas FIRST (so the user can see the path animation),

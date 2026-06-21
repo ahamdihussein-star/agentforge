@@ -9,7 +9,7 @@
 
         function _setPlaybackSubtitle(text) {
             const el = document.getElementById('process-playback-subtitle');
-            if (el) el.textContent = text || 'Showing the actual path the workflow took';
+            if (el) el.textContent = text || 'Showing the actual path the process took';
         }
 
         function _openProcessPlaybackModal(agentId, subtitle) {
@@ -719,10 +719,10 @@
             };
 
             const businessOutcomeText = isCompleted
-                ? (_pickBusinessOutcomeText(output) || 'Workflow completed successfully.')
+                ? (_pickBusinessOutcomeText(output) || 'Process completed successfully.')
                 : (isFailed
                     ? (errorMsg || 'The workflow could not complete. Please review the configuration and try again.')
-                    : 'Workflow is running. The result will appear when it completes.');
+                    : 'Process is running. The result will appear when it completes.');
 
             const outcomeHtmlBusiness = `<div style="font-size:14px;color:var(--text-primary);white-space:pre-wrap;line-height:1.55;">${_escapeHtmlCompat(businessOutcomeText)}</div>`;
 
@@ -746,7 +746,7 @@
                         })()))
                 : (isFailed
                     ? `<div style="font-size:13px;color:color-mix(in srgb, var(--danger) 92%, var(--text-primary));line-height:1.55;">${_escapeHtmlCompat(errorMsg || 'The workflow failed. Please check configuration and try again.')}</div>`
-                    : `<div style="font-size:13px;color:var(--text-primary);">Result will appear when the workflow completes.</div>`);
+                    : `<div style="font-size:13px;color:var(--text-primary);">Result will appear when the process completes.</div>`);
 
             const execId = execution?.id || execution?.execution_id || execution?.executionId;
             const whatHappenedBusiness = `
@@ -772,7 +772,7 @@
             body.innerHTML = `
                 <div class="flex items-start justify-between gap-3 mb-4">
                     <div>
-                        <div style="font-size:18px;font-weight:850;color:var(--text-primary);">${_escapeHtmlCompat(currentProcessAgent?.name || 'Workflow')}</div>
+                        <div style="font-size:18px;font-weight:850;color:var(--text-primary);">${_escapeHtmlCompat(currentProcessAgent?.name || 'Process')}</div>
                         <div style="font-size:13px;color:var(--text-secondary);margin-top:2px;">${_escapeHtmlCompat(headerDesc || '')}</div>
                     </div>
                     <div>${statusBadge}</div>
@@ -1055,7 +1055,7 @@
                 currentProcessAgent = await response.json();
                 
                 // Update modal header
-                document.getElementById('process-modal-title').textContent = currentProcessAgent.name || 'Workflow';
+                document.getElementById('process-modal-title').textContent = currentProcessAgent.name || 'Process';
                 const subtitleEl = document.getElementById('process-modal-subtitle');
                 const _fallbackSubtitle = (() => {
                     try {
@@ -1089,7 +1089,7 @@
                         const txt = `${name} ${parts.join(', then ')}.`;
                         return txt.length > 220 ? (txt.slice(0, 217).trimEnd() + '…') : txt;
                     } catch (_) {
-                        return 'Submit information to run this workflow.';
+                        return 'Submit information to run this process.';
                     }
                 })();
 
@@ -1719,7 +1719,7 @@
             } catch (_) {}
             
             // Update status badge
-            updateExecutionStatus('running', 'Processing...', 'Your workflow is running');
+            updateExecutionStatus('running', 'Processing...', 'Your process is running');
             
             try {
                 // Call execution API
@@ -1770,7 +1770,7 @@
                 // Show more helpful error message
                 let errorMsg = e.message || 'Something went wrong';
                 if (errorMsg.includes('not found') || errorMsg.includes('404')) {
-                    errorMsg = 'Workflow execution service is starting up. Please try again in a moment.';
+                    errorMsg = 'Process execution service is starting up. Please try again in a moment.';
                 } else if (errorMsg.includes('Failed to fetch')) {
                     errorMsg = 'Could not connect to server. Please check your connection.';
                 }
