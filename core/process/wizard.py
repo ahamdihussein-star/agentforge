@@ -306,9 +306,7 @@ IMPORTANT:
 - This workflow will be edited in a visual builder and executed by an engine.
 - Use ONLY these node types (exact strings):
   - trigger, condition, ai, tool, approval, notification, form, end
-  - parallel (run multiple paths at the same time — connect to multiple next steps)
-  - call_process (invoke another published process as a sub-step)
-  NOTE: The old "action", "delay", "loop", "read_document", "create_document", and "calculate" types are DEPRECATED. Do NOT use them.
+  NOTE: Do NOT use "parallel", "call_process", "loop", "while", "action", "delay", "read_document", "create_document", or "calculate" — they are NOT executed by the engine. Run independent steps sequentially (one after another), inline any sub-steps directly, and do per-item/iteration logic inside a single "ai" node.
   - For ANY computation (totals, averages, counts, formulas), use an "ai" node — NEVER a separate calculate step.
   - For file extraction or document generation, use an "ai" node with the appropriate aiMode (see below).
   - For iteration/repetition scenarios, use an "ai" node that handles the iteration internally.
@@ -373,14 +371,11 @@ BUSINESS LOGIC REASONING (CRITICAL — think like a process expert, not a text p
   5. Add a final instruction: "Determine the overall classification as the highest severity across all evaluated items."
   This pattern is GENERIC — derive field names from the user's prompt, never hardcode domain-specific names.
   For multi-level routing (e.g., "Clean → auto-approve, Low → Manager, High → Director"), use NESTED condition nodes — see the "Classification-Based Multi-Level Routing Cascade" pattern in the Knowledge Base.
-- PARALLEL TASKS — WHEN TO USE THE PARALLEL NODE:
-  When the user mentions "parallel", "at the same time", "simultaneously", or when two or more INDEPENDENT actions (not approver notification) should run concurrently, you MUST use a "parallel" node.
-  Common patterns that REQUIRE a parallel node:
-    - "Send email AND create a document" → parallel → [notification branch] + [ai/create_doc branch]
-    - "Notify multiple people at the same time" → parallel → [notification1] + [notification2]
-    - "Run two approvals in parallel" → parallel → [approval1] + [approval2]
-  Pattern that does NOT need a parallel node:
-    - "Send for approval AND notify the approver" → single approval node with notifyApprover:true (no parallel needed)
+- INDEPENDENT / "PARALLEL" TASKS — run them SEQUENTIALLY (the parallel node is NOT available):
+  When the user mentions "parallel", "at the same time", or "simultaneously", do NOT use a parallel node. Place the independent steps one after another in sequence — the outcome is identical, only the timing differs.
+    - "Send email AND create a document" → notification step → then an ai (create document) step
+    - "Notify multiple people at the same time" → one notification step, then another (or a single notification with multiple recipients)
+  Note: "Send for approval AND notify the approver" is a single approval node with notifyApprover:true (no extra step needed).
 - Smart field inference:
   - Use your business/industry knowledge to determine what fields are needed, even if the user didn't list them explicitly. Think like a business analyst: what information would a real-world form for this process collect? Add those fields.
   - IMPORTANT: Do NOT limit the Collect Information form to only what the user explicitly mentioned. If the user says "upload expense receipts", you should ALSO add fields like expense description/purpose, expense category (dropdown), date of expense, etc. — any field that is standard practice for that type of business process. But do NOT add fields for data that will be extracted automatically (e.g., amounts from receipts) or data from the user's profile (prefilled).
