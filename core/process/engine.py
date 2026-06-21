@@ -338,8 +338,23 @@ class ProcessEngine:
                     if self.nodes_executed % self.settings.checkpoint_interval_nodes == 0:
                         await self._save_checkpoint()
                 
-                # Find next node
-                next_node = await self._get_next_node(current_node, result)
+                # Find next node.
+                # PARALLEL: run every branch (sequentially) to its convergence, then
+                # continue from the merge node. Additive — only PARALLEL nodes take this
+                # path; all other node types use the normal single-next logic unchanged.
+                if current_node.type == NodeType.PARALLEL:
+                    merge_node, branch_failure = await self._run_parallel(current_node, result)
+                    if branch_failure is not None:
+                        return ProcessResult.failure(
+                            error=branch_failure.error,
+                            failed_node_id=getattr(branch_failure, 'failed_node_id', None),
+                            nodes_executed=self.state.get_completed_nodes(),
+                            total_duration_ms=(datetime.utcnow() - self.started_at).total_seconds() * 1000,
+                            execution_id=self.execution_id
+                        )
+                    next_node = merge_node
+                else:
+                    next_node = await self._get_next_node(current_node, result)
                 logger.info("[Engine] Next node after %s: %s",
                             current_node.id,
                             f"id={next_node.id} type={next_node.type.value}" if next_node else "NONE (end)")
