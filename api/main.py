@@ -1297,6 +1297,71 @@ class AgentGuardrails(BaseModel):
     no_store_pii: bool = True
 
 
+# ---------------------------------------------------------------------------
+# Guardrail runtime enforcement helpers (shared by all chat paths)
+# ---------------------------------------------------------------------------
+import re as _re_guard
+
+_PII_PATTERNS = [
+    (_re_guard.compile(r'\b(?:\d[ -]*?){13,19}\b'), '[REDACTED-CARD]'),          # credit-card-ish
+    (_re_guard.compile(r'\b\d{3}-\d{2}-\d{4}\b'), '[REDACTED-SSN]'),              # US SSN
+    (_re_guard.compile(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'), '[REDACTED-EMAIL]'),
+    (_re_guard.compile(r'\b(?:\+?\d[\d -]{7,}\d)\b'), '[REDACTED-PHONE]'),        # long phone numbers
+    (_re_guard.compile(r'\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b'), '[REDACTED-IBAN]'),  # IBAN
+]
+
+def _redact_pii(text):
+    """Redact common PII patterns (card, SSN, email, phone, IBAN) from text."""
+    if not text or not isinstance(text, str):
+        return text
+    out = text
+    for pat, repl in _PII_PATTERNS:
+        out = pat.sub(repl, out)
+    return out
+
+def _pii_redact_if(text, guardrails):
+    """Redact PII before persisting/logging when the agent has PII guardrails on."""
+    try:
+        g = guardrails
+        if g is not None and (getattr(g, 'mask_pii', False) or getattr(g, 'no_store_pii', False)):
+            return _redact_pii(text)
+    except Exception:
+        pass
+    return text
+
+# Hard token caps per max_length setting (real limit, not just a prompt hint).
+_GUARDRAIL_TOKEN_CAPS = {"short": 400, "medium": 900, "long": 2200, "unlimited": 4096}
+
+def _guardrail_max_tokens(guardrails, default=4096):
+    try:
+        return _GUARDRAIL_TOKEN_CAPS.get(getattr(guardrails, 'max_length', 'medium') or 'medium', default)
+    except Exception:
+        return default
+
+def _guardrail_length_instruction(guardrails):
+    """Strong, explicit length limit (LLMs follow explicit sentence/paragraph caps well)."""
+    m = getattr(guardrails, 'max_length', 'medium') or 'medium'
+    return {
+        'short': 'HARD LIMIT: at most 2 short paragraphs (~4 sentences). Never exceed this.',
+        'medium': 'Keep responses to 2-3 paragraphs.',
+        'long': 'Detailed responses are allowed when useful.',
+        'unlimited': 'Provide thorough coverage with no length restriction.',
+    }.get(m, 'Keep responses to 2-3 paragraphs.')
+
+def _guardrail_escalation_instruction(guardrails):
+    """Per-flag escalation instructions (offer human handoff)."""
+    g = guardrails
+    triggers = []
+    if getattr(g, 'escalate_angry', False): triggers.append('the user is frustrated or angry')
+    if getattr(g, 'escalate_complex', False): triggers.append("the request is too complex to handle confidently")
+    if getattr(g, 'escalate_request', False): triggers.append('the user explicitly asks for a human')
+    if getattr(g, 'escalate_sensitive', False): triggers.append('the topic is sensitive (legal or financial)')
+    if not triggers:
+        return ''
+    return ("\n**ESCALATION:** Offer to hand off to a human agent when " + "; ".join(triggers) +
+            ". Say clearly that you are connecting them to a human.")
+
+
 class AgentData(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
@@ -13099,11 +13164,13 @@ async def chat_stream(agent_id: str, request: StreamingChatRequest, current_user
                     system_prompt += "\n• Only say you don't have information if you have already tried using the relevant tool and it returned no results"
                 if g.cite_sources:
                     system_prompt += "\n• Cite sources using [Source X] format when using knowledge base"
+                if g.admit_uncertainty:
+                    system_prompt += "\n• If you are unsure, say you don't know — never guess or fabricate"
                 if g.verify_facts:
                     system_prompt += "\n• Use facts from tools and knowledge base - don't make up data"
                 if g.no_speculation:
                     system_prompt += "\n• Don't speculate about data you haven't retrieved"
-            
+
             if g.avoid_topics:
                 system_prompt += f"\n**AVOID:** {', '.join(g.avoid_topics)}"
             if g.focus_topics:
