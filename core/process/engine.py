@@ -622,7 +622,98 @@ class ProcessEngine:
         
         # Fall back to first edge
         return self.definition.get_node(edges[0].target)
-    
+
+    # =========================================================================
+    # PARALLEL execution (run branches sequentially, then converge at the merge)
+    # =========================================================================
+
+    def _find_merge_node(self, branch_starts):
+        """Find the convergence (merge) node: the nearest node reachable from ALL branches.
+        Returns the merge node id, or None if the branches never reconverge."""
+        from collections import deque
+        reach = []
+        for bs in branch_starts:
+            seen = set()
+            stack = [bs]
+            while stack:
+                nid = stack.pop()
+                for e in self.definition.get_outgoing_edges(nid):
+                    if e.target and e.target not in seen:
+                        seen.add(e.target)
+                        stack.append(e.target)
+            reach.append(seen)
+        if not reach:
+            return None
+        common = set(reach[0])
+        for s in reach[1:]:
+            common &= s
+        if not common:
+            return None
+        # Pick the convergence closest to the split (BFS distance from the first branch start).
+        q = deque([(branch_starts[0], 0)])
+        seen = {branch_starts[0]}
+        nearest, best = None, 10 ** 9
+        while q:
+            nid, d = q.popleft()
+            if nid in common and d < best:
+                nearest, best = nid, d
+            for e in self.definition.get_outgoing_edges(nid):
+                if e.target and e.target not in seen:
+                    seen.add(e.target)
+                    q.append((e.target, d + 1))
+        return nearest
+
+    async def _run_chain(self, start_id, stop_ids):
+        """Execute nodes starting at start_id, following the normal next-node logic, until a
+        node in stop_ids (the merge) is reached or the chain ends. Used for parallel branches.
+        Returns a failing NodeResult if a node fails, else None. Bounded by max_nodes."""
+        node = self.definition.get_node(start_id)
+        while node and node.id not in stop_ids:
+            if self.nodes_executed >= self.max_nodes:
+                return None
+            result = await self._execute_node(node)
+            if result.is_failure:
+                try:
+                    result.failed_node_id = node.id
+                except Exception:
+                    pass
+                return result
+            self.state.mark_completed(node.id, result.output)
+            if result.variables_update:
+                self.state.update(result.variables_update, changed_by=node.id)
+            self.nodes_executed += 1
+            if node.type == NodeType.PARALLEL:
+                # nested parallel inside a branch
+                merge_node, branch_failure = await self._run_parallel(node, result)
+                if branch_failure is not None:
+                    return branch_failure
+                node = merge_node
+            else:
+                node = await self._get_next_node(node, result)
+        return None
+
+    async def _run_parallel(self, parallel_node, result):
+        """Run all branches of a PARALLEL node sequentially, then return the merge node.
+        Returns (merge_node_or_None, failing_result_or_None)."""
+        branch_starts = None
+        if isinstance(getattr(result, 'output', None), dict):
+            branch_starts = result.output.get('branch_starts')
+        if not branch_starts:
+            branch_starts = [e.target for e in self.definition.get_outgoing_edges(parallel_node.id) if e.target]
+        branch_starts = [b for b in branch_starts if b]
+        if not branch_starts:
+            return None, None
+        merge_id = self._find_merge_node(branch_starts)
+        stop = {merge_id} if merge_id else set()
+        for bs in branch_starts:
+            branch_failure = await self._run_chain(bs, stop)
+            if branch_failure is not None:
+                return None, branch_failure
+        merge_node = self.definition.get_node(merge_id) if merge_id else None
+        logger.info("[Engine] Parallel %s: ran %d branches, merge=%s",
+                    parallel_node.id, len(branch_starts), merge_id)
+        return merge_node, None
+
     async def _save_checkpoint(self) -> None:
         """
         Save execution checkpoint to database
