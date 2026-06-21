@@ -11,6 +11,16 @@ The LLM MUST only use node types listed here. Do NOT invent unsupported nodes or
 - The process should be as simple as possible while fulfilling the user's goal.
 - This platform is for NON-TECHNICAL business users. All UI and configuration must be self-explanatory.
 
+## ⛔ Temporarily UNAVAILABLE shapes — do NOT generate these
+
+These shapes appear in the catalog but are **NOT yet executed by the workflow engine**. You MUST NOT use them in any generated process — a workflow that uses them will fail at runtime. Express the same intent with supported shapes instead:
+
+- **Run in Parallel** (`parallel`) → run the steps **sequentially** (one after another). Same result, only timing differs.
+- **Repeat / Loop** (`loop`) and **While** (`while`) → handle "for each item" logic **inside a single AI Step** (have the AI process the whole list in one step), or design the process for a single item.
+- **Call Process** (`call_process`) → **inline** the needed steps directly in this process; do not invoke another process as a sub-step.
+
+USE ONLY these shapes: Start, Finish, Collect Information (`form`), AI Step (`ai`), Decision (`condition`), Request Approval (`approval`), Send Message (`notification`), Connect to System (`tool`), Calculate (`calculate`).
+
 ## Visual Builder UX (Zero Free-Text Policy)
 
 The visual Process Builder enforces a **business-friendly, no-free-text** experience for referencing data:
