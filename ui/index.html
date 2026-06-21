@@ -4329,64 +4329,11 @@ Example: I need an HR agent that can:
                     <div>
                         <label class="text-sm text-gray-400 mb-1 block">Database Type</label>
                         <select id="db-type" class="input-field w-full rounded-lg px-4 py-2" onchange="onDBTypeChange()">
-                            <optgroup label="Relational Databases">
-                                <option value="postgresql">PostgreSQL</option>
-                                <option value="mysql">MySQL / MariaDB</option>
-                                <option value="mssql">Microsoft SQL Server</option>
-                                <option value="oracle">Oracle Database</option>
-                                <option value="oracle_autonomous">Oracle Autonomous Database</option>
-                                <option value="sqlite">SQLite</option>
-                                <option value="db2">IBM Db2</option>
-                                <option value="sybase">SAP Sybase</option>
-                                <option value="teradata">Teradata</option>
-                                <option value="snowflake">Snowflake</option>
-                                <option value="redshift">Amazon Redshift</option>
-                                <option value="bigquery">Google BigQuery</option>
-                                <option value="azure_sql">Azure SQL Database</option>
-                                <option value="cockroachdb">CockroachDB</option>
-                                <option value="tidb">TiDB</option>
-                            </optgroup>
-                            <optgroup label="NoSQL Databases">
-                                <option value="mongodb">MongoDB</option>
-                                <option value="mongodb_atlas">MongoDB Atlas</option>
-                                <option value="dynamodb">Amazon DynamoDB</option>
-                                <option value="cosmosdb">Azure Cosmos DB</option>
-                                <option value="firestore">Google Firestore</option>
-                                <option value="couchdb">CouchDB</option>
-                                <option value="cassandra">Apache Cassandra</option>
-                                <option value="scylladb">ScyllaDB</option>
-                                <option value="hbase">Apache HBase</option>
-                            </optgroup>
-                            <optgroup label="In-Memory / Cache">
-                                <option value="redis">Redis</option>
-                                <option value="memcached">Memcached</option>
-                                <option value="elasticache">Amazon ElastiCache</option>
-                            </optgroup>
-                            <optgroup label="Search Engines">
-                                <option value="elasticsearch">Elasticsearch</option>
-                                <option value="opensearch">OpenSearch</option>
-                                <option value="solr">Apache Solr</option>
-                                <option value="meilisearch">Meilisearch</option>
-                            </optgroup>
-                            <optgroup label="Vector Databases">
-                                <option value="pinecone">Pinecone</option>
-                                <option value="weaviate">Weaviate</option>
-                                <option value="qdrant">Qdrant</option>
-                                <option value="milvus">Milvus</option>
-                                <option value="chroma">ChromaDB</option>
-                            </optgroup>
-                            <optgroup label="Time Series">
-                                <option value="influxdb">InfluxDB</option>
-                                <option value="timescaledb">TimescaleDB</option>
-                                <option value="questdb">QuestDB</option>
-                            </optgroup>
-                            <optgroup label="Graph Databases">
-                                <option value="neo4j">Neo4j</option>
-                                <option value="neptune">Amazon Neptune</option>
-                                <option value="arangodb">ArangoDB</option>
-                            </optgroup>
+                            <option value="postgresql">PostgreSQL</option>
+                            <option value="mysql">MySQL / MariaDB</option>
+                            <option value="sqlite">SQLite</option>
                         </select>
-                            
+                        <p class="text-xs text-gray-500 mt-1">Live read-only queries (SELECT/SHOW/DESCRIBE/EXPLAIN) are supported for these three. More engines coming soon.</p>
                     </div>
                     
                     <!-- Standard Connection Fields -->
