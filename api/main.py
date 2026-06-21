@@ -2985,6 +2985,8 @@ async def execute_tool(tool_id: str, tool_type: str, arguments: Dict) -> Dict:
                 user = cfg.get('user') or cfg.get('username'); pwd = cfg.get('password')
                 if db_type in ('postgresql', 'postgres') and host and dbname:
                     conn_str = f"postgresql://{user}:{pwd}@{host}:{port or 5432}/{dbname}"
+                elif db_type in ('mysql', 'mariadb') and host and dbname:
+                    conn_str = f"mysql://{user}:{pwd}@{host}:{port or 3306}/{dbname}"
                 elif db_type == 'sqlite' and (cfg.get('path') or dbname):
                     conn_str = cfg.get('path') or dbname
             if not db_type or not conn_str:
@@ -3011,6 +3013,22 @@ async def execute_tool(tool_id: str, tool_type: str, arguments: Dict) -> Dict:
                         return {"success": True, "rows": rows, "row_count": len(rows)}
                     finally:
                         conn.close()
+                elif db_type in ('mysql', 'mariadb'):
+                    import pymysql  # type: ignore
+                    conn = pymysql.connect(
+                        host=cfg.get('host'), port=int(cfg.get('port') or 3306),
+                        user=cfg.get('user') or cfg.get('username'),
+                        password=cfg.get('password') or '',
+                        database=cfg.get('database'),
+                        cursorclass=pymysql.cursors.DictCursor,
+                        connect_timeout=10)
+                    try:
+                        cur = conn.cursor()
+                        cur.execute(_q)
+                        rows = list(cur.fetchmany(50))
+                        return {"success": True, "rows": rows, "row_count": len(rows)}
+                    finally:
+                        conn.close()
                 elif db_type == 'sqlite':
                     import sqlite3
                     conn = sqlite3.connect(conn_str)
@@ -3023,10 +3041,33 @@ async def execute_tool(tool_id: str, tool_type: str, arguments: Dict) -> Dict:
                     finally:
                         conn.close()
                 else:
-                    return {"success": False, "error": f"Database type '{db_type}' isn't supported for live queries yet (supported: postgresql, sqlite)."}
+                    return {"success": False, "error": f"Database type '{db_type}' isn't supported for live queries yet (supported: postgresql, mysql, sqlite)."}
             except Exception as e:
                 return {"success": False, "error": f"Database query failed: {e}"}
-        
+
+        elif tool_type == 'create_document':
+            # Generate a downloadable Word / Excel / PowerPoint file from
+            # agent-provided content. Libraries (python-docx/openpyxl/python-pptx)
+            # are bundled, so this works with no external credentials.
+            cfg = tool.config or {}
+            fmt = arguments.get('format') or arguments.get('type') or cfg.get('default_format') or 'docx'
+            title = arguments.get('title') or arguments.get('name') or 'Document'
+            content = arguments.get('content') or arguments.get('text') or arguments.get('body') or ''
+            rows = arguments.get('rows') or arguments.get('data')
+            if not content and not rows:
+                return {"success": False, "error": "No content provided. Pass 'content' (text/CSV/slides) to put in the document."}
+            try:
+                fname, fpath = _generate_document_file(fmt, title, content, rows)
+                size = os.path.getsize(fpath)
+                return {
+                    "success": True,
+                    "message": f"Created {fname} ({size} bytes). The user can download it from the link.",
+                    "filename": fname,
+                    "download_url": f"/api/tool-outputs/{fname}",
+                }
+            except Exception as e:
+                return {"success": False, "error": f"Document generation failed: {e}"}
+
         else:
             return {"success": False, "error": f"Unknown tool type: {tool_type}"}
     
