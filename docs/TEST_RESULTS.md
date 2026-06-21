@@ -138,6 +138,11 @@ Legend severity: 🔴 demo-blocker · 🟠 important · 🟡 minor.
 - Published **Currency Assistant** (gpt-4o, 1 tool) in the end-user **Chat** view: asked for live rates and it **actually called its Exchange Rate tool** → returned real, internally-consistent data (1 EUR = 1.1467 USD, and 1 USD = 0.8719 EUR ≈ 1/1.1467). It also did **not hallucinate** an EGP rate ("not available in the current data"). Tool use + instruction adherence + anti-fabrication all ✅.
 - **Important implication for the KB gap:** since the LLM clearly DOES call API tools, the agent-not-using-its-KB problem is **not** a general "LLM won't call tools" issue — it's specific to the **knowledge tool** path. Most likely the KB either (a) didn't actually attach/persist on the ACME agent, or (b) the agent's KB search queries a different collection/tool_id than where content was embedded. This narrows what to check (and pairs with the "KB wizard sources not persisted" bug family). Still benefits from one Railway log line to confirm which.
 
+## ✅ Settings page reviewed (+ exact Gemini fix location)
+- **Theme** (6 options, Ocean active), **Integrations** (Google/Microsoft OAuth for Email tools — not configured), **Email** (Resend key saved, from noreply@agentforge.to), **Identity & User Directory** (✅ Configured; source = **Built-in Org Chart**), **LLM Providers**.
+- **LLM Providers**: Google/Gemini, Cohere, Anthropic, **OpenAI [Default ✓]**, Groq — all have keys. So **OpenAI is already the platform default** (good). The **Gemini 403** comes only from agents explicitly set to a Google model. **Exact fix for Ahmed (Settings → LLM Providers):** delete the Google provider (trash icon) OR edit/restrict its key — everything then falls back to the OpenAI default. (Settings/credential change = Ahmed's call.)
+- Minor UX: navigating away (hash nav) did NOT auto-close an open tool-edit modal — the stale modal overlaid the next page until manually cancelled.
+
 ## ✅ Process Builder shapes — manual drag-drop + property panels (Build Manually)
 Built a blank "My Workflow" and exercised the palette shapes:
 - **Start** ✅ panel: Manual start / Scheduled.
