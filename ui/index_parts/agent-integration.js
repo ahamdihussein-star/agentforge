@@ -55,7 +55,8 @@
         block("Run (cURL)", curl) + block("Run + poll (JavaScript)", js);
     }
     // Conversational
-    var embed = '<script src="' + base + '/ui/embed/agent-widget.js"\n' +
+    var widgetSrc = info.widget_src || (base + "/ui/embed/agent-widget.js?v=2");
+    var embed = '<script src="' + widgetSrc + '"\n' +
       '        data-agent-id="' + id + '"\n' +
       '        data-api-key="' + key + '"\n' +
       '        data-title="' + name + '"><\/script>';
@@ -103,7 +104,7 @@
     } else {
       lines.push("## Embed on a website (one line)");
       lines.push("```html");
-      lines.push('<script src="' + (info.base_url || "") + '/ui/embed/agent-widget.js" data-agent-id="' + info.agent_id + '" data-api-key="' + (info.api_key || "") + '"><\/script>');
+      lines.push('<script src="' + (info.widget_src || ((info.base_url || "") + '/ui/embed/agent-widget.js?v=2')) + '" data-agent-id="' + info.agent_id + '" data-api-key="' + (info.api_key || "") + '"><\/script>');
       lines.push("```");
       lines.push("");
       lines.push("## Call from code");

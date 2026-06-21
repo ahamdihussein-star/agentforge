@@ -8674,7 +8674,7 @@ def _af_integration_view(agent_id, cfg, base):
         "endpoint": (f"{base}/api/public/agents/{agent_id}/run" if is_process
                      else f"{base}/api/public/agents/{agent_id}/chat"),
         "status_endpoint": f"{base}/api/public/agents/{agent_id}/runs/{{execution_id}}" if is_process else None,
-        "widget_src": f"{base}/ui/embed/agent-widget.js",
+        "widget_src": f"{base}/ui/embed/agent-widget.js?v=2",
         "base_url": base,
     }
 
