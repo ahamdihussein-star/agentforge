@@ -317,21 +317,24 @@
                             Agent<span style="background:var(--accent-gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Forge</span>
                         </h1>
                     </div>
-                    <p class="dash-subtitle" style="font-size:1.1rem; color:var(--text-secondary); max-width:500px; margin-top:12px; line-height:1.6;">
-                        Build, deploy, and manage intelligent AI agents that transform how your organization works.
+                    <p class="dash-subtitle" style="font-size:1.1rem; color:var(--text-secondary); max-width:520px; margin-top:12px; line-height:1.6;">
+                        Build, deploy, and manage AI agents that automate real work across your organization &mdash; no code required.
                     </p>
+                    <div style="margin-top:24px;">
+                        <button onclick="navigate('create')" style="display:inline-flex; align-items:center; gap:8px; background:var(--accent-gradient); color:#fff; border:none; padding:12px 22px; border-radius:12px; font-size:0.95rem; font-weight:700; cursor:pointer; box-shadow:var(--shadow-md);">Create your first agent <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+                    </div>
                     
                     <!-- Quick Stats -->
                     <div class="dash-stats" style="display:flex; gap:16px; margin-top:32px; flex-wrap:wrap;">
-                        <div class="dash-stat-card" data-permission="agents:view">
+                        <div class="dash-stat-card" data-permission="agents:view" onclick="navigate('agents')" style="cursor:pointer;">
                             <div class="dash-stat-num" id="dash-stat-agents">0</div>
                             <div><div style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">Agents</div><div style="font-size:0.7rem; color:var(--text-muted);">Published</div></div>
                         </div>
-                        <div class="dash-stat-card" data-permission="tools:view">
+                        <div class="dash-stat-card" data-permission="tools:view" onclick="navigate('tools')" style="cursor:pointer;">
                             <div class="dash-stat-num" id="dash-stat-tools">0</div>
-                            <div><div style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">Tools</div><div style="font-size:0.7rem; color:var(--text-muted);">Connected</div></div>
+                            <div><div style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">Tools</div><div style="font-size:0.7rem; color:var(--text-muted);">Available</div></div>
                         </div>
-                        <div class="dash-stat-card" data-permission="users:view,roles:view,system:admin">
+                        <div class="dash-stat-card" data-permission="users:view,roles:view,system:admin" onclick="navigate('security')" style="cursor:pointer;">
                             <div class="dash-stat-num" id="dash-stat-users">0</div>
                             <div><div style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">Users</div><div style="font-size:0.7rem; color:var(--text-muted);">Active</div></div>
                         </div>
@@ -341,11 +344,11 @@
                 <!-- Quick Actions Grid -->
                 <div class="dash-grid">
                     <h2 style="font-size:1.1rem; font-weight:700; color:var(--text-primary); margin-bottom:20px;">Quick Actions</h2>
-                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:20px;">
-                        <div class="dash-card" onclick="navigate('create')" data-permission="agents:create">
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px;">
+                        <div class="dash-card" onclick="navigate('create')" data-permission="agents:create" style="border:1.5px solid color-mix(in srgb, var(--accent-primary) 45%, transparent);">
                             <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-primary) 15%, transparent);"><svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="10" x="3" y="11" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><path d="M8 16h.01"/><path d="M16 16h.01"/></svg></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Create AI Agent</div>
-                            <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Create an intelligent digital Conversational or Process AI agent that can understand, decide, and take action across your systems.</div>
+                            <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Build a Conversational or Process AI agent &mdash; no code required.</div>
                         </div>
                         <div class="dash-card" onclick="navigate('agents')" data-permission="agents:view">
                             <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-secondary) 15%, transparent); animation-delay:0.5s;"><svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="var(--accent-secondary)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></div>
@@ -365,7 +368,7 @@
                         <div class="dash-card" onclick="window.location.href='/lab'" data-permission="demo:access">
                             <div class="dash-card-icon" style="background:color-mix(in srgb, var(--danger) 15%, transparent); animation-delay:2s;"><svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Lab</div>
-                            <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Experiment with agents in a sandbox environment before going live.</div>
+                            <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Generate realistic test data &mdash; mock APIs, documents, and images &mdash; to test your agents.</div>
                         </div>
                         <div class="dash-card" onclick="navigate('security')" data-permission="users:view,roles:view,system:admin">
                             <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-primary) 10%, transparent); animation-delay:2.5s;"><svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
