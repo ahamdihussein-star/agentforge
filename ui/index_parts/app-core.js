@@ -436,7 +436,7 @@ const API='';
         try { if (!window.afRenderExtractionReview) window.afRenderExtractionReview = afRenderExtractionReview; } catch (_) {}
         try { window.afDownloadProcessUploadFile = afDownloadProcessUploadFile; } catch (_) {}
         
-        let step=0,wizard={name:'',icon:'',goal:'',originalGoal:'',personality:null,tasks:[],tool_ids:[],suggestedTools:[],guardrails:{},model:'',modelReason:'',editId:null,deployTarget:'cloud',cloudProvider:''},allTools=[],toolType=null,uploadedFiles=[],agentTab='published',conv=null,testAgent=null,apiStep=1,apiParams=[],configMode='manual',chatAttachments=[],testAttachments=[];
+        let step=0,wizard={name:'',icon:'',goal:'',originalGoal:'',personality:null,tasks:[],tool_ids:[],suggestedTools:[],guardrails:{},model:'',models:[],modelReason:'',editId:null,deployTarget:'cloud',cloudProvider:''},allTools=[],toolType=null,uploadedFiles=[],agentTab='published',conv=null,testAgent=null,apiStep=1,apiParams=[],configMode='manual',chatAttachments=[],testAttachments=[];
         
         // Track current page to prevent duplicate navigation from hashchange
         let _currentPage = '';
@@ -805,9 +805,14 @@ const API='';
         function applyRecommendationsWithAnimation(config) {
             // 1. Update Model with animation
             if (config.model) {
-                wizard.model = config.model;
                 wizard.modelReason = config.modelReason;  // Store the reason
-                
+                // Multi-select: add the AI-recommended model to the selection, but keep
+                // GPT as the default primary (per product requirement).
+                if (!Array.isArray(wizard.models)) wizard.models = wizard.model ? [wizard.model] : [];
+                if (!wizard.models.includes(config.model)) wizard.models.push(config.model);
+                if (typeof syncPrimaryModel === 'function') syncPrimaryModel();
+                else wizard.model = config.model;
+
                 const modelContainer = document.getElementById('llm-models-list');
                 if (modelContainer) {
                     modelContainer.classList.add('animate-pulse');
@@ -949,6 +954,7 @@ const API='';
                 suggestedTools: [],
                 guardrails: {},
                 model: '',
+                models: [],
                 modelReason: '',
                 editId: null,
                 deployTarget: 'cloud',
@@ -1276,6 +1282,7 @@ const API='';
                     tasks: wizard.tasks || [],
                     tool_ids: wizard.tool_ids || [],
                     model_id: wizard.model || 'gpt-4o',
+                    model_ids: (Array.isArray(wizard.models) && wizard.models.length) ? wizard.models : [wizard.model || 'gpt-4o'],
                     model_reason: wizard.modelReason || '',
                     status: 'draft' // Always save as draft during wizard
                 };
