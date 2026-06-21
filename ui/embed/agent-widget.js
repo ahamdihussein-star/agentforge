@@ -6,7 +6,7 @@
  *           data-title="Support" data-accent="#6366f1"></script>
  * Renders a floating chat bubble that talks to the agent's public API,
  * running the SAME chat engine (guardrails, tasks, tools, knowledge base)
- * as inside the platform.
+ * as inside the platform. Supports uploading documents & images.
  */
 (function () {
   "use strict";
@@ -23,7 +23,6 @@
   var apiKey = s.getAttribute("data-api-key");
   if (!agentId || !apiKey) { console.error("[AgentForge] data-agent-id and data-api-key are required"); return; }
 
-  // Base URL = origin of the script src
   var base;
   try { base = new URL(s.src, location.href).origin; } catch (e) { base = ""; }
   var endpoint = base + "/api/public/agents/" + encodeURIComponent(agentId) + "/chat";
@@ -32,6 +31,7 @@
   var accent = s.getAttribute("data-accent") || "#6366f1";
   var greeting = s.getAttribute("data-greeting") || "Hi! How can I help you today?";
   var convId = null;
+  var pending = []; // { name, type, data(base64) }
 
   if (window.__afWidgetLoaded) return; window.__afWidgetLoaded = true;
 
@@ -47,11 +47,17 @@
     ".afw-msg{max-width:82%;padding:9px 13px;border-radius:14px;font-size:14px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;}",
     ".afw-bot{background:#fff;color:#1f2937;align-self:flex-start;border:1px solid #e5e7eb;}",
     ".afw-user{background:" + accent + ";color:#fff;align-self:flex-end;}",
-    ".afw-foot{display:flex;gap:8px;padding:10px;border-top:1px solid #eceef1;background:#fff;}",
-    ".afw-foot input{flex:1;border:1.5px solid #cbd5e1;border-radius:10px;padding:10px 12px;font-size:14px;outline:none;color:#1f2937;}",
-    ".afw-foot input:focus{border-color:" + accent + ";}",
-    ".afw-foot button{background:" + accent + ";color:#fff;border:none;border-radius:10px;padding:0 16px;font-weight:600;cursor:pointer;}",
-    ".afw-foot button:disabled{opacity:.5;cursor:default;}",
+    ".afw-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 10px 6px;background:#fff;}",
+    ".afw-chip{display:flex;align-items:center;gap:6px;background:#eef1f6;border:1px solid #dde3ec;border-radius:8px;padding:4px 8px;font-size:12px;color:#334155;max-width:100%;}",
+    ".afw-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;}",
+    ".afw-chip b{cursor:pointer;color:#94a3b8;font-weight:700;}",
+    ".afw-foot{display:flex;gap:8px;align-items:center;padding:10px;border-top:1px solid #eceef1;background:#fff;}",
+    ".afw-attach{flex:none;width:38px;height:38px;border-radius:10px;border:1.5px solid #cbd5e1;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#64748b;}",
+    ".afw-attach:hover{border-color:" + accent + ";color:" + accent + ";}",
+    ".afw-foot input.afw-text{flex:1;border:1.5px solid #cbd5e1;border-radius:10px;padding:10px 12px;font-size:14px;outline:none;color:#1f2937;}",
+    ".afw-foot input.afw-text:focus{border-color:" + accent + ";}",
+    ".afw-send{background:" + accent + ";color:#fff;border:none;border-radius:10px;padding:0 16px;font-weight:600;cursor:pointer;}",
+    ".afw-send:disabled{opacity:.5;cursor:default;}",
     ".afw-typing{color:#94a3b8;font-size:13px;align-self:flex-start;padding:4px 6px;}"
   ].join("");
   var st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
@@ -66,13 +72,24 @@
   panel.innerHTML =
     '<div class="afw-head"><span></span><button aria-label="Close">×</button></div>' +
     '<div class="afw-body"></div>' +
-    '<div class="afw-foot"><input type="text" placeholder="Type your message…" /><button>Send</button></div>';
+    '<div class="afw-chips" style="display:none;"></div>' +
+    '<div class="afw-foot">' +
+      '<button class="afw-attach" title="Attach a document or image" aria-label="Attach">' +
+      '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>' +
+      '</button>' +
+      '<input type="file" class="afw-file" multiple accept="image/*,.pdf,.doc,.docx,.txt,.csv,.md" style="display:none;" />' +
+      '<input type="text" class="afw-text" placeholder="Type your message…" />' +
+      '<button class="afw-send">Send</button>' +
+    '</div>';
   document.body.appendChild(panel);
   panel.querySelector(".afw-head span").textContent = title;
 
   var body = panel.querySelector(".afw-body");
-  var input = panel.querySelector(".afw-foot input");
-  var sendBtn = panel.querySelector(".afw-foot button");
+  var chips = panel.querySelector(".afw-chips");
+  var input = panel.querySelector(".afw-text");
+  var sendBtn = panel.querySelector(".afw-send");
+  var attachBtn = panel.querySelector(".afw-attach");
+  var fileInput = panel.querySelector(".afw-file");
   var closeBtn = panel.querySelector(".afw-head button");
   var greeted = false;
 
@@ -90,10 +107,37 @@
   btn.addEventListener("click", function () { toggle(!panel.classList.contains("open")); });
   closeBtn.addEventListener("click", function () { toggle(false); });
 
+  function renderChips() {
+    if (!pending.length) { chips.style.display = "none"; chips.innerHTML = ""; return; }
+    chips.style.display = "flex";
+    chips.innerHTML = pending.map(function (f, i) {
+      return '<span class="afw-chip"><span>📎 ' + esc(f.name) + '</span><b data-i="' + i + '">×</b></span>';
+    }).join("");
+    Array.prototype.forEach.call(chips.querySelectorAll("b"), function (x) {
+      x.addEventListener("click", function () { pending.splice(+x.getAttribute("data-i"), 1); renderChips(); });
+    });
+  }
+  attachBtn.addEventListener("click", function () { fileInput.click(); });
+  fileInput.addEventListener("change", function () {
+    var files = Array.prototype.slice.call(fileInput.files || []);
+    files.slice(0, 5).forEach(function (file) {
+      if (file.size > 12 * 1024 * 1024) { addMsg("File too large (max 12MB): " + file.name, "bot"); return; }
+      var reader = new FileReader();
+      reader.onload = function () {
+        pending.push({ name: file.name, type: file.type, data: String(reader.result) });
+        renderChips();
+      };
+      reader.readAsDataURL(file);
+    });
+    fileInput.value = "";
+  });
+
   async function send() {
     var text = (input.value || "").trim();
-    if (!text) return;
-    input.value = ""; addMsg(text, "user");
+    if (!text && !pending.length) return;
+    input.value = "";
+    var atts = pending.slice(); pending = []; renderChips();
+    addMsg((text || "(sent file)") + (atts.length ? "\n📎 " + atts.map(function (a) { return a.name; }).join(", ") : ""), "user");
     sendBtn.disabled = true;
     var typing = document.createElement("div");
     typing.className = "afw-typing"; typing.textContent = "Typing…";
@@ -102,7 +146,7 @@
       var r = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
-        body: JSON.stringify({ message: text, conversation_id: convId })
+        body: JSON.stringify({ message: text, conversation_id: convId, attachments: atts })
       });
       var data = await r.json();
       typing.remove();
