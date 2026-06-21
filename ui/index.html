@@ -126,6 +126,15 @@
       #page-create div[class*="bg-gray-900"],
       #page-create span[class*="bg-gray-800"],
       #page-create label[class*="bg-gray-800"] { background-color: color-mix(in srgb, var(--text-primary) 6%, var(--bg-card, #fff)) !important; }
+
+      /* Edit/Add Task modal — same neutral, consistent text treatment */
+      #modal-task .text-gray-300 { color: var(--text-primary) !important; }
+      #modal-task .text-gray-400,
+      #modal-task .text-gray-500,
+      #modal-task .text-gray-600 { color: color-mix(in srgb, var(--text-primary) 60%, var(--bg-card, #fff)) !important; }
+      #modal-task [class*="text-blue-2"],
+      #modal-task [class*="text-blue-3"],
+      #modal-task [class*="text-blue-4"] { color: color-mix(in srgb, #2563eb 78%, #000) !important; }
     </style>
 </head>
 <body class="text-white" style="height:100vh;overflow:hidden;margin:0;background:var(--bg-primary);color:var(--text-primary);">
