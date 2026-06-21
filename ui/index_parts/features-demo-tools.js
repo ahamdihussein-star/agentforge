@@ -219,6 +219,7 @@
                                 </div>
                                 <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition">
                                     ${a.status === 'published' ? `<button onclick="event.stopPropagation();openProcessExecution('${a.id}')" class="p-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-sm" title="Run">▶️</button>` : ''}
+                                    ${a.status === 'published' ? `<button onclick="event.stopPropagation();openAgentIntegration('${a.id}','process')" class="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm" title="API & Integration">🔌</button>` : ''}
                                     <button onclick="event.stopPropagation();editAgent('${a.id}')" class="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm" title="Edit">✏️</button>
                                     ${a.is_owner ? `<button onclick="event.stopPropagation();deleteAgent('${a.id}')" class="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-400 text-sm" title="Delete">🗑️</button>` : ''}
                                 </div>
