@@ -1075,24 +1075,26 @@
                     });
                 }
             }
-            
-            // Check if wizard.model is available, if not use first available
-            const currentModelAvailable = availableModels.some(m => m.id === wizard.model);
-            if (!currentModelAvailable && availableModels.length > 0) {
-                wizard.model = availableModels[0].id;
+
+            // Normalize the multi-select state.
+            if (!Array.isArray(wizard.models)) wizard.models = wizard.model ? [wizard.model] : [];
+            // Drop any selections that are no longer available.
+            wizard.models = wizard.models.filter(id => availableModels.some(m => m.id === id));
+            // Default to a GPT model when nothing is selected yet.
+            if (wizard.models.length === 0 && availableModels.length > 0) {
+                const def = availableModels.find(m => /gpt/i.test(m.id) || /openai/i.test(m.provider || '')) || availableModels[0];
+                wizard.models = [def.id];
             }
-            
+            syncPrimaryModel();
+
             // Group models by provider
             const modelsByProvider = {};
             for (const model of availableModels) {
                 const providerKey = model.providerName || model.provider;
-                if (!modelsByProvider[providerKey]) {
-                    modelsByProvider[providerKey] = [];
-                }
+                if (!modelsByProvider[providerKey]) modelsByProvider[providerKey] = [];
                 modelsByProvider[providerKey].push(model);
             }
-            
-            // Get provider icons
+
             const providerIcons = {
                 'openai': '🟢', 'OpenAI': '🟢',
                 'anthropic': '🟠', 'Anthropic': '🟠',
@@ -1107,13 +1109,13 @@
                 'ollama': '🦙', 'Ollama': '🦙',
                 'lmstudio': '🖥️', 'LM Studio': '🖥️'
             };
-            
+
             let html = '';
-            
-            // Show AI recommendation from API if available
-            if (wizard.model && wizard.modelReason && wizard.goal) {
+
+            // AI recommendation banner (recommendation is added to the selection).
+            if (wizard.modelReason && wizard.goal) {
                 html += `
-                    <div class="mb-4 p-3 bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-500/30 rounded-lg">
+                    <div class="mb-3 p-3 bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-500/30 rounded-lg">
                         <div class="flex items-start gap-2">
                             <span class="text-lg">💡</span>
                             <div>
@@ -1124,68 +1126,134 @@
                     </div>
                 `;
             }
-            
-            // Render models grouped by provider
+
+            // Build grouped checkbox rows.
+            let optionsHtml = '';
             for (const [providerName, models] of Object.entries(modelsByProvider)) {
                 const icon = providerIcons[providerName] || '🤖';
-                
-                html += `
-                    <div class="mb-3">
-                        <p class="text-xs text-gray-500 mb-2 flex items-center gap-1">
-                            <span>${icon}</span> ${providerName}
-                        </p>
-                        <div class="space-y-2">
-                `;
-                
+                optionsHtml += `<div class="af-mdd-group">
+                    <p class="px-2 pt-2 pb-1 text-[11px] uppercase tracking-wide text-gray-500 flex items-center gap-1"><span>${icon}</span>${providerName}</p>`;
                 for (const model of models) {
-                    const isSelected = model.id === wizard.model;
-                    const isRecommended = model.id === wizard.model && wizard.goal;
-                    
-                    const recommendedBadge = isRecommended
-                        ? `<span class="text-[10px] bg-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded ml-1">✨ AI Selected</span>`
-                        : '';
-                    
-                    html += `
-                        <div class="p-2.5 rounded-lg cursor-pointer model-option transition-all ${isSelected ? 'border-2 border-purple-500 bg-purple-500/10' : 'border border-gray-700 hover:border-gray-500'}" 
-                             data-model="${model.id}" onclick="selectModel('${model.id}')">
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm font-medium">${model.name}</span>
-                                ${recommendedBadge}
+                    const checked = wizard.models.includes(model.id);
+                    const isDefault = model.id === wizard.model;
+                    optionsHtml += `
+                        <label class="af-mdd-opt flex items-center gap-2 px-2 py-2 rounded-md cursor-pointer hover:bg-purple-500/10"
+                               data-model="${model.id}" data-search="${(model.id + ' ' + providerName).toLowerCase()}">
+                            <input type="checkbox" class="af-mdd-cb w-4 h-4 accent-purple-500" ${checked ? 'checked' : ''} onchange="toggleModelCheck(this)">
+                            <span class="text-sm">${model.name}</span>
+                            <span class="af-mdd-def text-[10px] bg-purple-500/30 text-purple-200 px-1.5 py-0.5 rounded ml-auto ${isDefault ? '' : 'hidden'}">Default</span>
+                        </label>`;
+                }
+                optionsHtml += `</div>`;
+            }
+
+            html += `
+                <div class="af-mdd relative">
+                    <button type="button" id="model-dd-toggle" onclick="toggleModelDropdown()"
+                            class="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-gray-700 hover:border-purple-500 bg-gray-900/40 text-sm transition-colors">
+                        <span id="model-dd-label" class="truncate text-left">Select models</span>
+                        <svg id="model-dd-chev" class="w-4 h-4 flex-none text-gray-400 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div id="model-dd-panel" class="hidden mt-2 border border-gray-700 rounded-lg bg-gray-900/70 overflow-hidden">
+                        <div class="p-2 border-b border-gray-700">
+                            <div class="relative">
+                                <svg class="w-4 h-4 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                                <input id="model-dd-search" type="text" placeholder="Search models…" oninput="filterModelOptions()"
+                                       class="w-full pl-8 pr-3 py-2 text-sm rounded-md bg-gray-800 border border-gray-700 focus:border-purple-500 outline-none">
                             </div>
                         </div>
-                    `;
-                }
-                
-                html += `
-                        </div>
+                        <div id="model-dd-options" class="max-h-[260px] overflow-y-auto p-1">${optionsHtml}</div>
+                        <div id="model-dd-empty" class="hidden px-3 py-4 text-center text-xs text-gray-500">No models match your search.</div>
                     </div>
-                `;
-            }
-            
+                </div>
+            `;
+
             container.innerHTML = html;
-            
-            // Update model explanation
+            updateModelLabel();
+
             if (wizard.modelReason) {
                 const modelWhyEl = document.getElementById('model-why-text');
-                if (modelWhyEl) {
-                    modelWhyEl.textContent = wizard.modelReason;
-                }
+                if (modelWhyEl) modelWhyEl.textContent = wizard.modelReason;
             }
         }
-        
-        function selectModel(modelId) {
-            wizard.model = modelId;
-            
-            // Update UI
-            document.querySelectorAll('.model-option').forEach(el => {
-                const isSelected = el.dataset.model === modelId;
-                if (el.dataset.model) {
-                    el.className = 'p-2.5 rounded-lg cursor-pointer model-option transition-all ' + 
-                        (isSelected ? 'border-2 border-purple-500 bg-purple-500/10' : 'border border-gray-700 hover:border-gray-500');
-                }
+
+        // Primary/default model = prefer a selected GPT model, else the first selected.
+        function syncPrimaryModel() {
+            if (!Array.isArray(wizard.models) || wizard.models.length === 0) return;
+            const gpt = wizard.models.find(m => /gpt/i.test(m));
+            wizard.model = gpt || wizard.models[0];
+        }
+
+        function toggleModelDropdown() {
+            const panel = document.getElementById('model-dd-panel');
+            const chev = document.getElementById('model-dd-chev');
+            if (!panel) return;
+            const open = panel.classList.toggle('hidden') === false;
+            if (chev) chev.style.transform = open ? 'rotate(180deg)' : '';
+            if (open) {
+                const s = document.getElementById('model-dd-search');
+                if (s) { s.value = ''; filterModelOptions(); setTimeout(() => s.focus(), 0); }
+            }
+        }
+
+        function filterModelOptions() {
+            const q = (document.getElementById('model-dd-search')?.value || '').trim().toLowerCase();
+            let anyVisible = false;
+            document.querySelectorAll('#model-dd-options .af-mdd-opt').forEach(opt => {
+                const hit = !q || (opt.dataset.search || '').includes(q);
+                opt.style.display = hit ? '' : 'none';
+                if (hit) anyVisible = true;
             });
-            
-            // Update explanation
+            document.querySelectorAll('#model-dd-options .af-mdd-group').forEach(g => {
+                const any = Array.from(g.querySelectorAll('.af-mdd-opt')).some(o => o.style.display !== 'none');
+                g.style.display = any ? '' : 'none';
+            });
+            const empty = document.getElementById('model-dd-empty');
+            if (empty) empty.classList.toggle('hidden', anyVisible);
+        }
+
+        function toggleModelCheck(cb) {
+            const opt = cb.closest('.af-mdd-opt');
+            const id = opt && opt.dataset.model;
+            if (!id) return;
+            if (!Array.isArray(wizard.models)) wizard.models = [];
+            if (cb.checked) {
+                if (!wizard.models.includes(id)) wizard.models.push(id);
+            } else {
+                if (wizard.models.length <= 1) { cb.checked = true; return; } // keep at least one
+                wizard.models = wizard.models.filter(m => m !== id);
+            }
+            syncPrimaryModel();
+            updateModelLabel();
+            updateDefaultBadges();
+            updateModelExplanation(wizard.model, wizard.goal);
+        }
+
+        function updateModelLabel() {
+            const el = document.getElementById('model-dd-label');
+            if (!el) return;
+            const n = (wizard.models || []).length;
+            if (!n) { el.textContent = 'Select models'; return; }
+            if (n === 1) { el.textContent = wizard.models[0]; return; }
+            el.textContent = `${wizard.model} + ${n - 1} more`;
+        }
+
+        function updateDefaultBadges() {
+            document.querySelectorAll('.af-mdd-opt').forEach(opt => {
+                const def = opt.querySelector('.af-mdd-def');
+                if (def) def.classList.toggle('hidden', opt.dataset.model !== wizard.model);
+            });
+        }
+
+        // Backward-compatible: programmatic single-select still works (adds to selection).
+        function selectModel(modelId) {
+            if (!Array.isArray(wizard.models)) wizard.models = [];
+            if (!wizard.models.includes(modelId)) wizard.models.push(modelId);
+            syncPrimaryModel();
+            updateModelLabel();
+            updateDefaultBadges();
+            const cb = document.querySelector(`.af-mdd-opt[data-model="${modelId}"] .af-mdd-cb`);
+            if (cb) cb.checked = true;
             updateModelExplanation(modelId, wizard.goal);
         }
         
