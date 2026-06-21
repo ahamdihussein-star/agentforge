@@ -901,30 +901,103 @@ RULES:
     # Markdown-based renderers (for general/non-financial docs)
     # ------------------------------------------------------------------
 
+    # ---- Markdown rendering helpers (shared by docx/pptx) ----
+    @staticmethod
+    def _md_runs(paragraph, text):
+        """Add text to a docx paragraph, rendering **bold**, *italic*, `code`."""
+        for tok in re.split(r'(\*\*.+?\*\*|\*.+?\*|`.+?`)', text or ''):
+            if not tok:
+                continue
+            if tok.startswith('**') and tok.endswith('**'):
+                paragraph.add_run(tok[2:-2]).bold = True
+            elif tok.startswith('*') and tok.endswith('*'):
+                paragraph.add_run(tok[1:-1]).italic = True
+            elif tok.startswith('`') and tok.endswith('`'):
+                paragraph.add_run(tok[1:-1])
+            else:
+                paragraph.add_run(tok)
+
+    @staticmethod
+    def _md_strip(text):
+        t = re.sub(r'\*\*(.+?)\*\*', r'\1', text or '')
+        t = re.sub(r'`(.+?)`', r'\1', t)
+        return t.replace('*', '').strip()
+
+    @staticmethod
+    def _is_md_table_sep(line):
+        s = (line or '').strip()
+        return bool(re.match(r'^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?$', s))
+
+    @staticmethod
+    def _md_table_cells(line):
+        s = (line or '').strip()
+        if s.startswith('|'):
+            s = s[1:]
+        if s.endswith('|'):
+            s = s[:-1]
+        return [c.strip() for c in s.split('|')]
+
+    @classmethod
+    def _docx_table(cls, doc, header, rows):
+        ncols = max(len(header), max((len(r) for r in rows), default=0)) or 1
+        table = doc.add_table(rows=1, cols=ncols)
+        for st in ('Light Grid Accent 1', 'Light List Accent 1', 'Table Grid'):
+            try:
+                table.style = st
+                break
+            except Exception:
+                continue
+        hdr = table.rows[0].cells
+        for c in range(ncols):
+            hdr[c].text = ''
+            cls._md_runs(hdr[c].paragraphs[0], header[c] if c < len(header) else '')
+            for run in hdr[c].paragraphs[0].runs:
+                run.bold = True
+        for r in rows:
+            cells = table.add_row().cells
+            for c in range(ncols):
+                cells[c].text = ''
+                cls._md_runs(cells[c].paragraphs[0], r[c] if c < len(r) else '')
+        return table
+
     @classmethod
     def _create_docx(cls, filepath: str, title: str, content: str) -> int:
-        """Create a Word document from markdown content."""
+        """Create a Word document from markdown content (native tables + bold)."""
         doc = Document()
-
         doc.add_heading(title, 0)
 
-        for line in content.split('\n'):
-            line = line.strip()
+        lines = content.split('\n')
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
             if not line:
+                i += 1
                 continue
 
-            if line.startswith('# '):
-                doc.add_heading(line[2:], 1)
+            if line.startswith('|') and i + 1 < len(lines) and cls._is_md_table_sep(lines[i + 1]):
+                header = cls._md_table_cells(line)
+                body = []
+                j = i + 2
+                while j < len(lines) and lines[j].strip().startswith('|'):
+                    body.append(cls._md_table_cells(lines[j]))
+                    j += 1
+                cls._docx_table(doc, header, body)
+                i = j
+                continue
+
+            if line.startswith('### '):
+                doc.add_heading(line[4:], 3)
             elif line.startswith('## '):
                 doc.add_heading(line[3:], 2)
-            elif line.startswith('### '):
-                doc.add_heading(line[4:], 3)
+            elif line.startswith('# '):
+                doc.add_heading(line[2:], 1)
             elif line.startswith('- ') or line.startswith('* '):
-                doc.add_paragraph(line[2:], style='List Bullet')
-            elif line.startswith('1. ') or line.startswith('2. '):
-                doc.add_paragraph(line[3:], style='List Number')
+                cls._md_runs(doc.add_paragraph(style='List Bullet'), line[2:])
+            elif re.match(r'^\d+\.\s', line):
+                cls._md_runs(doc.add_paragraph(style='List Number'), re.sub(r'^\d+\.\s', '', line))
             else:
-                doc.add_paragraph(line)
+                cls._md_runs(doc.add_paragraph(), line)
+            i += 1
 
         doc.save(filepath)
         return os.path.getsize(filepath)
