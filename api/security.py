@@ -418,13 +418,21 @@ async def get_current_user(
     if not session.is_active:
         return None
     
-    # Check session timeout
+    # Check session timeout. Guard the timestamp parse: a missing/malformed last_activity
+    # (e.g. a freshly rehydrated session after a restart) must NOT 500 every authenticated
+    # request — treat it as just-active and refresh the timestamp instead of crashing.
     settings = security_state.get_settings()
     if settings.session_timeout_minutes > 0:
-        last_activity = datetime.fromisoformat(session.last_activity)
-        if datetime.utcnow() - last_activity > timedelta(minutes=settings.session_timeout_minutes):
-            session.is_active = False
-            return None
+        try:
+            last_activity = datetime.fromisoformat(session.last_activity)
+            if datetime.utcnow() - last_activity > timedelta(minutes=settings.session_timeout_minutes):
+                session.is_active = False
+                return None
+        except (TypeError, ValueError):
+            try:
+                session.last_activity = datetime.utcnow().isoformat()
+            except Exception:
+                pass
     
     user = security_state.users.get(user_id)
     
