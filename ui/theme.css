@@ -836,3 +836,40 @@ a:focus-visible {
     z-index: 2;
 }
 .af-choice.selected .af-choice-badge { display: flex; }
+
+/* Clean circular modal close button (theme-aware) */
+.af-modal-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    z-index: 5;
+    transition: background .15s ease, color .15s ease, transform .2s ease, border-color .15s ease;
+}
+.af-modal-close:hover {
+    background: color-mix(in srgb, var(--danger) 14%, transparent);
+    color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+    transform: rotate(90deg);
+}
+
+/* Wizard secondary (Back) button — pairs with the primary Continue */
+.af-wiz-btn-secondary {
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+.af-wiz-btn-secondary:hover {
+    border-color: var(--accent-primary);
+    background: color-mix(in srgb, var(--accent-primary) 8%, var(--bg-input));
+}
