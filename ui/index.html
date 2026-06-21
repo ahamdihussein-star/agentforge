@@ -3017,7 +3017,7 @@
                                     </div>
                                 </div>
                                 <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" id="guard-anti-hallucination" class="sr-only peer" checked>
+                                    <input type="checkbox" id="guard-anti-hallucination" class="sr-only peer" checked onchange="afGuardGate('guard-anti-hallucination','anti-hallucination-options')">
                                     <div class="w-11 h-6 bg-red-400 peer-focus:ring-2 peer-focus:ring-green-400 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
                                 </label>
                             </div>
@@ -3145,11 +3145,11 @@
                                     </div>
                                 </div>
                                 <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" id="guard-pii-protection" class="sr-only peer" checked>
+                                    <input type="checkbox" id="guard-pii-protection" class="sr-only peer" checked onchange="afGuardGate('guard-pii-protection','pii-protection-options')">
                                     <div class="w-11 h-6 bg-red-400 peer-focus:ring-2 peer-focus:ring-green-400 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
                                 </label>
                             </div>
-                            <div class="space-y-3 pl-10">
+                            <div class="space-y-3 pl-10" id="pii-protection-options">
                                 <label class="flex items-center gap-3 cursor-pointer">
                                     <input type="checkbox" id="guard-mask-pii" class="w-4 h-4 rounded" checked>
                                     <span class="text-sm">Mask sensitive data in logs (SSN, credit cards)</span>
@@ -7198,7 +7198,7 @@ Option 3"></textarea>
     <script src="/ui/shared/password-change-modal.js?v=20260621m" defer></script>
     <script src="/ui/index_parts/process-playback.js?v=20260621m" defer></script>
     <script src="/ui/index_parts/approvals.js?v=20260621o" defer></script>
-    <script src="/ui/index_parts/agent-wizard.js?v=20260621m" defer></script>
+    <script src="/ui/index_parts/agent-wizard.js?v=20260621n" defer></script>
     <script src="/ui/index_parts/features-demo-tools.js?v=20260621m" defer></script>
     <script src="/ui/index_parts/features-tools-wizard.js?v=20260621m" defer></script>
     <script src="/ui/index_parts/features-chat.js?v=20260621s" defer></script>

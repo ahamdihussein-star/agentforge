@@ -2004,9 +2004,25 @@
             setChecked('guard-pii-protection', g.piiProtection, true);
             setChecked('guard-mask-pii', g.maskPii, true);
             setChecked('guard-no-store-pii', g.noStorePii, true);
-            
+
+            // Reflect master toggles onto their sub-option sections
+            afGuardGate('guard-anti-hallucination', 'anti-hallucination-options');
+            afGuardGate('guard-pii-protection', 'pii-protection-options');
+
             // Load access control settings (async - enriches entity names)
             await loadWizardAccessControl();
+        }
+
+        // Master safety toggle -> enable/disable + dim its sub-options so the UI
+        // clearly reflects whether the protection group is active.
+        function afGuardGate(masterId, containerId) {
+            const master = document.getElementById(masterId);
+            const box = document.getElementById(containerId);
+            if (!master || !box) return;
+            const on = !!master.checked;
+            box.style.opacity = on ? '1' : '0.45';
+            box.style.pointerEvents = on ? '' : 'none';
+            box.querySelectorAll('input,select,textarea').forEach(el => { el.disabled = !on; });
         }
         
         async function showPreviewNew() {
