@@ -2924,14 +2924,16 @@ const API='';
             
             if (_createBuildMode === 'manual') {
                 if (selectedAgentType === 'process') {
-                    openVisualBuilder();
-                    closeCreateWizardModal(true);
+                    // Manual process: go through the same Describe step as AI so the
+                    // process description/goal is always captured in the wizard.
+                    // From there, "Define Tasks Manually" opens the visual builder.
+                    createFlowGo('ai');
                     return;
                 }
                 startManualConversationalWizard();
                 return;
             }
-            
+
             createFlowGo('ai');
         }
         
