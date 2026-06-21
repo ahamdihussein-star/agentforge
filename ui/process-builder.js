@@ -7807,6 +7807,25 @@
             });
         }
 
+        async function _loadTestRoleUsers() {
+            // Platform users that have an email address — used to cast roles in a test run.
+            const token = getAuthToken();
+            if (!token) return [];
+            try {
+                const res = await fetch('/api/security/users', { headers: { 'Authorization': 'Bearer ' + token } });
+                if (!res.ok) return [];
+                const data = await res.json();
+                const users = Array.isArray(data.users) ? data.users : (Array.isArray(data) ? data : []);
+                return users.map(u => ({
+                    id: u && (u.id || u.user_id),
+                    name: (u && (u.name || u.full_name || u.display_name || u.username)) || (u && u.email) || '',
+                    email: (u && u.email) || ''
+                })).filter(u => u.id && u.email);
+            } catch (_) {
+                return [];
+            }
+        }
+
         async function testWorkflow() {
             const startNode = getStartNodeForTest() || state.nodes.find(n => n && n.type === 'form') || null;
             if (!startNode) {
@@ -8281,6 +8300,26 @@
             } catch (_) {
                 currentUser = null;
             }
+            // ── Collect role casting (test-only overrides) before closing the modal ──
+            try {
+                const roleUsers = window._testRoleUsers || [];
+                const byId = {};
+                roleUsers.forEach(u => { if (u && u.id) byId[u.id] = u; });
+                const overrides = {};
+                document.querySelectorAll('#test-workflow-form select[data-role-node]').forEach(sel => {
+                    const nodeId = sel.getAttribute('data-role-node');
+                    const uid = sel.value;
+                    if (nodeId && uid && byId[uid]) {
+                        overrides[nodeId] = { user_id: byId[uid].id, email: byId[uid].email, name: byId[uid].name };
+                    }
+                });
+                if (Object.keys(overrides).length) values._test_role_overrides = overrides;
+                const reqSel = document.querySelector('#test-workflow-form select[data-role-requester]');
+                if (reqSel && reqSel.value && byId[reqSel.value]) {
+                    values._test_requester_id = byId[reqSel.value].id;
+                }
+            } catch (_) { /* role casting is best-effort */ }
+
             closeTestModal();
             await runWorkflowTestWithEngine(values, { fieldDefs, currentUser });
         }
