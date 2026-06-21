@@ -7231,6 +7231,7 @@
             const goal = opts.goal || opts.originalGoal || '';
             document.getElementById('workflow-name').value = name;
             if (goal) state.goal = goal;
+            _updateDescriptionField();
 
             const nodes = def?.nodes || [];
             const edges = def?.edges || def?.connections || [];
@@ -7818,11 +7819,14 @@
             ) : Promise.resolve(workflowName));
             if (!templateName) return;
 
+            const _descDefault = (state.goal && String(state.goal).trim())
+                || String(document.getElementById('workflow-description')?.value || '').trim();
             const description = await (window.afPrompt ? window.afPrompt(
                 'Add a short business description so other users understand when to use this template.',
                 {
                     title: 'Template Description',
                     placeholder: 'Example: Reusable approval workflow with intake, manager review, and notification steps.',
+                    defaultValue: _descDefault,
                     confirmText: 'Continue',
                     multiline: true
                 }
