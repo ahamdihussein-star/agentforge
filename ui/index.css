@@ -1682,12 +1682,13 @@
         }
         .personality-slider-group {
             padding: 8px 12px;
-            background: rgba(31, 41, 55, 0.3);
+            background: color-mix(in srgb, var(--text-primary) 5%, var(--bg-card, #fff));
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             transition: background 0.2s;
         }
         .personality-slider-group:hover {
-            background: rgba(31, 41, 55, 0.5);
+            background: color-mix(in srgb, var(--text-primary) 10%, var(--bg-card, #fff));
         }
 
         /* Tool Dropdown Menu - Theme Independent */
