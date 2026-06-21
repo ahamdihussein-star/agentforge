@@ -751,3 +751,22 @@ a:focus-visible {
     outline: 2px solid var(--accent-primary);
     outline-offset: 2px;
 }
+
+/* ====================================================================
+ * Icon-in-tile contrast fix (admin + end-user portal)
+ * Icons sitting INSIDE a saturated/gradient tile (agent avatars, quick
+ * actions, section badges) were drawn with the brand gradient stroke, so
+ * they blended into the tile and disappeared. Force them WHITE.
+ * `>` direct-child guards keep this scoped to the tile itself, so icons on
+ * white sub-cards nested deeper are never affected.
+ * ================================================================== */
+[class*="bg-gradient-to-"] > .afi-w svg,
+[class*="bg-gradient-to-"] > svg,
+.bg-purple-500 > .afi-w svg, .bg-blue-500 > .afi-w svg, .bg-green-500 > .afi-w svg,
+.bg-indigo-500 > .afi-w svg, .bg-violet-500 > .afi-w svg, .bg-teal-500 > .afi-w svg,
+.bg-pink-500 > .afi-w svg, .bg-red-500 > .afi-w svg, .bg-orange-500 > .afi-w svg,
+.bg-purple-600 > .afi-w svg, .bg-blue-600 > .afi-w svg, .bg-indigo-600 > .afi-w svg,
+.bg-purple-500 > svg, .bg-blue-500 > svg, .bg-green-500 > svg,
+.bg-indigo-500 > svg, .bg-violet-500 > svg, .bg-teal-500 > svg {
+    stroke: #ffffff !important;
+}
