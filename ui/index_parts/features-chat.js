@@ -2150,6 +2150,15 @@ function showStep(step) {
     if (actualStep === 3) {
         const hasSources = toolMeta[wizState.type]?.hasSources;
         document.getElementById('source-tabs').style.display = hasSources ? 'flex' : 'none';
+        // Fix mismatched sub-header: this Sources/Upload screen is shared by the
+        // Knowledge Base and Documents tools, so derive its title/step from the
+        // actual tool type instead of the hardcoded "Step 3 of 4: knowledge base".
+        const sTitle = document.getElementById('wiz-sources-title');
+        const sSub = document.getElementById('wiz-sources-sub');
+        if (sTitle) sTitle.textContent = (wizState.type === 'document') ? 'Upload Documents' : 'Add Sources';
+        if (sSub) sSub.textContent = 'Step ' + wizState.step + ' of ' + wizState.maxSteps +
+            ((wizState.type === 'document') ? ': Add files, text or tables to this tool'
+                                            : ': Add content to your knowledge base');
     }
     
     // Load access control data when entering Access step
