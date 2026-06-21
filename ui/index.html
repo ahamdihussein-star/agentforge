@@ -317,6 +317,9 @@
                 <button onclick="navigate('agents')" id="nav-agents" data-permission="agents:view" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
                     <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg><span>Agent Hub</span>
                 </button>
+                <button onclick="navigate('processes')" id="nav-processes" data-permission="agents:view" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
+                    <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></svg><span>Process Agents</span>
+                </button>
                 <button onclick="navigate('tools')" id="nav-tools" data-permission="tools:view" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
                     <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg><span>Tools</span>
                 </button>
@@ -3988,6 +3991,25 @@ Example: I need an HR agent that can:
                     </div>
                 </div>
             </section>
+
+            <!-- Process AI Agents Page -->
+            <section id="page-processes" class="hidden flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+                    <h2 class="text-xl md:text-2xl font-bold flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-xl">🔄</div>
+                        <span>Process AI Agents</span>
+                        <span id="process-page-count" class="px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-sm font-medium">0</span>
+                    </h2>
+                    <button onclick="navigate('create')" class="btn-primary px-4 py-2 rounded-lg hidden md:block" data-permission="agents:create">+ Create</button>
+                </div>
+                <p class="text-sm text-gray-400 mb-5">Run your published process automations and approval flows.</p>
+                <div class="mb-5">
+                    <input id="process-page-search" type="text" oninput="renderProcessPage()" placeholder="Search processes…"
+                        class="w-full sm:w-80 px-4 py-2 rounded-lg"
+                        style="background:var(--bg-input,#fff);border:1.5px solid var(--input-border,#cbd5e1);color:var(--text-primary);outline:none;">
+                </div>
+                <div id="process-page-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            </section>
         </main>
     </div>
 
@@ -3996,6 +4018,7 @@ Example: I need an HR agent that can:
         <button onclick="navigate('dashboard')" id="mob-dashboard" class="active"><span>🏠</span><span>Home</span></button>
         <button onclick="navigate('chat')" id="mob-chat" data-permission="chat:use" class=""><span>💬</span><span>Chat</span></button>
         <button onclick="navigate('agents')" id="mob-agents" data-permission="agents:view" class=""><span>🔗</span><span>Hub</span></button>
+        <button onclick="navigate('processes')" id="mob-processes" data-permission="agents:view" class=""><span>🔄</span><span>Process</span></button>
         <button onclick="navigate('create')" id="mob-create" data-permission="agents:create" class=""><span>🔨</span><span>Studio</span></button>
         <button onclick="navigate('tools')" id="mob-tools" data-permission="tools:view" class=""><span>🧩</span><span>Tools</span></button>
         <button onclick="navigate('settings')" id="mob-settings" data-permission="system:settings" class=""><span>⚙️</span><span>Settings</span></button>
