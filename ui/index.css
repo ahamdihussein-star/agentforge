@@ -1103,12 +1103,19 @@
         }
         [data-theme="light"] #modal-task .bg-gray-900,
         [data-theme="ocean"] #modal-task .bg-gray-900 {
-            background: #e5e7eb !important;
+            background: #ffffff !important;
             color: #1f2937 !important;
         }
         [data-theme="light"] #modal-task .text-white,
         [data-theme="ocean"] #modal-task .text-white {
             color: #1f2937 !important;
+        }
+        /* Colored buttons keep WHITE text (overrides the .text-white darken above) */
+        [data-theme="light"] #modal-task button[class*="bg-blue-"],
+        [data-theme="ocean"] #modal-task button[class*="bg-blue-"],
+        [data-theme="light"] #modal-task button[class*="bg-blue-"] *,
+        [data-theme="ocean"] #modal-task button[class*="bg-blue-"] * {
+            color: #ffffff !important;
         }
         [data-theme="light"] #modal-task .text-gray-300,
         [data-theme="light"] #modal-task .text-gray-400,
@@ -1116,13 +1123,19 @@
         [data-theme="ocean"] #modal-task .text-gray-400 {
             color: #4b5563 !important;
         }
+        /* Text boxes: clean WHITE fill with a clearly-defined border */
         [data-theme="light"] #modal-task input,
         [data-theme="light"] #modal-task textarea,
         [data-theme="ocean"] #modal-task input,
         [data-theme="ocean"] #modal-task textarea {
-            background: #e5e7eb !important;
+            background: #ffffff !important;
             color: #1f2937 !important;
-            border-color: #d1d5db !important;
+            border: 1.5px solid #cbd5e1 !important;
+        }
+        [data-theme="ocean"] #modal-task input:focus,
+        [data-theme="ocean"] #modal-task textarea:focus {
+            border-color: #6366f1 !important;
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.18) !important;
         }
         [data-theme="light"] #modal-task .task-modal-inst-text,
         [data-theme="ocean"] #modal-task .task-modal-inst-text {
