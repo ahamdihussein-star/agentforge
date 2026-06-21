@@ -65,17 +65,20 @@
         </div>
         
         <div class="toolbar-actions">
-            <span class="toolbar-label">Flow:</span>
+            <div class="tb-seg">
             <button type="button" class="toolbar-btn btn-secondary flow-btn" id="flow-vertical" title="Vertical: من أعلى لأسفل (Top → Bottom)" onclick="setFlowDirection('vertical')">
                 <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M12 3v18"/><path d="m8 7 4-4 4 4"/><path d="m8 17 4 4 4-4"/></svg>
             </button>
             <button type="button" class="toolbar-btn btn-secondary flow-btn" id="flow-horizontal" title="Horizontal: من يسار ليمين (Left → Right)" onclick="setFlowDirection('horizontal')">
                 <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M3 12h18"/><path d="m7 8-4 4 4 4"/><path d="m17 8 4 4-4 4"/></svg>
             </button>
+            </div>
+            <span class="tb-sep"></span>
             <button type="button" class="toolbar-btn btn-secondary" title="Arrange process in best alignment" onclick="alignProcess()">
                 <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><path d="M12 3v18"/><rect width="14" height="6" x="5" y="5" rx="1"/><rect width="10" height="6" x="7" y="13" rx="1"/></svg>
             </button>
-            <span class="toolbar-label" style="margin-left:8px;">Labels:</span>
+            <span class="tb-sep"></span>
+            <div class="tb-group">
             <button type="button" class="toolbar-btn btn-secondary" title="Smaller label font" onclick="setLabelFontSize(-1)">
                 <span>A−</span>
             </button>
@@ -83,12 +86,15 @@
                 <span>A+</span>
             </button>
             <span id="label-font-size-display" style="font-size:11px;color:var(--pb-muted);min-width:2.5em;">11px</span>
+            </div>
+            <span class="tb-sep"></span>
             <button class="toolbar-btn btn-secondary" title="Undo (Ctrl+Z)" onclick="undoAction()">
                 <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
             </button>
             <button class="toolbar-btn btn-secondary" title="Redo (Ctrl+Shift+Z)" onclick="redoAction()">
                 <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
             </button>
+            <span class="tb-sep"></span>
             <button class="toolbar-btn btn-secondary" onclick="testWorkflow()">
                 <svg class="tb-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;"><polygon points="6 3 20 12 6 21 6 3"/></svg> Test
             </button>
@@ -377,7 +383,7 @@
         <script src="/ui/dialogs.js?v=20260223c" defer></script>
         <script src="/ui/process-builder.js?v=20260621w" defer></script>
         <script src="/ui/icon-system.js?v=20260621e" defer></script>
-        <style id="af-builder-shell">#pb-portal-banner{display:none !important;} :root{--pb-banner-h:0px;} @media(min-width:768px){#node-palette{left:276px !important;} #build-overlay{left:calc(50% + 128px) !important;}} #top-toolbar{overflow-x:auto;overflow-y:hidden;} #top-toolbar::-webkit-scrollbar{height:6px;} #top-toolbar .tb-ico{margin-right:4px;} #top-toolbar{padding:0 10px !important;} #top-toolbar .toolbar-actions{gap:6px !important;}</style>
+        <style id="af-builder-shell">#pb-portal-banner{display:none !important;} :root{--pb-banner-h:0px;} @media(min-width:768px){#node-palette{left:276px !important;} #build-overlay{left:calc(50% + 128px) !important;}} #top-toolbar{overflow-x:auto;overflow-y:hidden;} #top-toolbar::-webkit-scrollbar{height:6px;} #top-toolbar .tb-ico{margin-right:4px;} #top-toolbar{padding:0 10px !important;} #top-toolbar .toolbar-actions{gap:6px !important;} #top-toolbar .toolbar-actions{gap:6px !important;} #top-toolbar .tb-seg{display:inline-flex;align-items:center;border:1px solid var(--tb-btn-secondary-border,#334155);border-radius:10px;overflow:hidden} #top-toolbar .tb-seg .toolbar-btn{border:none !important;border-radius:0 !important;margin:0} #top-toolbar .tb-seg .toolbar-btn+.toolbar-btn{border-left:1px solid var(--tb-btn-secondary-border,#334155) !important} #top-toolbar .tb-sep{width:1px;height:22px;background:var(--node-border,#475569);opacity:.55;margin:0 3px;flex:none} #top-toolbar .tb-group{display:inline-flex;align-items:center;gap:4px}</style>
         <script>window.__afActiveNav='create';</script>
         <script src="/ui/shared/app-sidebar.js?v=20260621a" defer></script>
 </body>
