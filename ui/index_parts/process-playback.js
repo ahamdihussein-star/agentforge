@@ -745,7 +745,7 @@
                             return `<div style="overflow-x:auto;"><table style="width:100%;font-size:13px;"><tbody>${rows}</tbody></table></div>`;
                         })()))
                 : (isFailed
-                    ? `<div style="font-size:13px;color:color-mix(in srgb, var(--danger) 92%, var(--text-primary));line-height:1.55;">${_escapeHtmlCompat(errorMsg || 'The workflow failed. Please check configuration and try again.')}</div>`
+                    ? `<div style="font-size:13px;color:color-mix(in srgb, var(--danger) 92%, var(--text-primary));line-height:1.55;">${_escapeHtmlCompat(errorMsg || 'The process failed. Please check configuration and try again.')}</div>`
                     : `<div style="font-size:13px;color:var(--text-primary);">Result will appear when the process completes.</div>`);
 
             const execId = execution?.id || execution?.execution_id || execution?.executionId;
@@ -1048,7 +1048,7 @@
                 });
                 
                 if (!response.ok) {
-                    showToast('Could not load workflow', 'error');
+                    showToast('Could not load process', 'error');
                     return;
                 }
                 
@@ -1145,7 +1145,7 @@
                 
             } catch(e) {
                 console.error('Error opening process execution:', e);
-                showToast('Could not load workflow: ' + e.message, 'error');
+                showToast('Could not load process: ' + e.message, 'error');
             }
         }
         

@@ -678,7 +678,7 @@
                     showToast(error.detail || 'Could not save', 'error');
                 }
             } catch(e) {
-                showToast('Could not save workflow', 'error');
+                showToast('Could not save process', 'error');
             }
         }
         

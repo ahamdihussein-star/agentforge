@@ -7111,7 +7111,7 @@
                 // Load a generated draft passed from the main wizard (sessionStorage/localStorage)
                 const ok = loadDraftWorkflowFromStorage();
                 if (!ok) {
-                    // If we're in "wait" mode, don't create a default workflow (we'll receive it via postMessage)
+                    // If we're in "wait" mode, don't create a default process (we'll receive it via postMessage)
                     if (String(draft).toLowerCase() === 'wait') {
                         // Keep canvas empty and show a friendly waiting overlay
                         try { _clearCanvasState(); } catch (_) {}
@@ -7738,7 +7738,7 @@
             
             const token = getAuthToken();
             if (!token) {
-                pbAlert('Please sign in first to save or publish workflows.', { title: 'Sign in required', buttonText: 'OK' });
+                pbAlert('Please sign in first to save or publish processs.', { title: 'Sign in required', buttonText: 'OK' });
                 return;
             }
             
@@ -7774,7 +7774,7 @@
                     body: JSON.stringify(body)
                 });
                 
-                let errMsg = 'Could not save workflow';
+                let errMsg = 'Could not save process';
                 if (!response.ok) {
                     try {
                         const errBody = await response.json();
@@ -7795,7 +7795,7 @@
                 pbToast('Process saved.', 'success');
             } catch (e) {
                 console.error('Save error:', e);
-                pbToast(String(e.message || 'Could not save workflow.'), 'error');
+                pbToast(String(e.message || 'Could not save process.'), 'error');
             }
         }
 
@@ -7887,7 +7887,7 @@
             
             const token = getAuthToken();
             if (!token) {
-                pbAlert('Please sign in first to publish workflows.', { title: 'Sign in required', buttonText: 'OK' });
+                pbAlert('Please sign in first to publish processs.', { title: 'Sign in required', buttonText: 'OK' });
                 return;
             }
             
@@ -7901,7 +7901,7 @@
                     body: JSON.stringify({ status: 'published', is_published: true })
                 });
                 
-                let errMsg = 'Could not publish workflow';
+                let errMsg = 'Could not publish process';
                 if (!response.ok) {
                     try {
                         const errBody = await response.json();
@@ -7916,7 +7916,7 @@
                 pbToast('Process published.', 'success');
             } catch (e) {
                 console.error('Publish error:', e);
-                pbToast(String(e.message || 'Could not publish workflow.'), 'error');
+                pbToast(String(e.message || 'Could not publish process.'), 'error');
             }
         }
         
@@ -8764,8 +8764,8 @@
             let data = null;
             try { data = await res.json(); } catch (_) { data = null; }
             if (!res.ok) {
-                const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (res.statusText || 'Could not save workflow');
-                throw new Error(String(msg || 'Could not save workflow'));
+                const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (res.statusText || 'Could not save process');
+                throw new Error(String(msg || 'Could not save process'));
             }
             if (!state.agentId) {
                 state.agentId = data?.agent_id || data?.id || state.agentId;
@@ -8864,7 +8864,7 @@
             const headline = status === 'completed'
                 ? 'Process completed successfully.'
                 : status === 'failed'
-                    ? (execution?.error_message || execution?.error?.message || 'The workflow failed.')
+                    ? (execution?.error_message || execution?.error?.message || 'The process failed.')
                     : status === 'waiting'
                         ? 'Process is waiting for approval.'
                         : 'Process is running.';
@@ -9200,7 +9200,7 @@
 
             let executionId = null;
             try {
-                setText('Starting workflow…');
+                setText('Starting process…');
                 const res = await fetch('/process/execute', {
                     method: 'POST',
                     headers: {
@@ -9216,8 +9216,8 @@
                 let data = null;
                 try { data = await res.json(); } catch (_) { data = null; }
                 if (!res.ok) {
-                    const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (res.statusText || 'Failed to start workflow');
-                    throw new Error(String(msg || 'Failed to start workflow'));
+                    const msg = (data && (data.detail || data.message || data.error)) ? (data.detail || data.message || data.error) : (res.statusText || 'Failed to start process');
+                    throw new Error(String(msg || 'Failed to start process'));
                 }
                 executionId = data?.id || data?.execution_id || data?.executionId;
                 if (!executionId) throw new Error('No execution id returned.');
@@ -9343,7 +9343,7 @@
             while (Date.now() - startedAt < maxMs) {
                 const ex = await _fetchExecution(executionId);
                 if (!ex) {
-                    setText('Could not read workflow status. Please try again.');
+                    setText('Could not read process status. Please try again.');
                     setBadge('failed');
                     break;
                 }

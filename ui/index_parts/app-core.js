@@ -2440,7 +2440,7 @@ const API='';
                     backendTemplateId: t.id,
                     icon: _inferTemplateIcon(t.process_definition),
                     title: t.name || 'Saved Process Template',
-                    subtitle: t.description || 'Reusable workflow template',
+                    subtitle: t.description || 'Reusable process template',
                     tags: ['Saved Template', t.category || 'General'],
                     prompt: '',
                     process_definition: t.process_definition || null
@@ -3861,7 +3861,7 @@ const API='';
                     showToast('Could not save: ' + (error.detail || 'Unknown error'), 'error');
                 }
             } catch(e) {
-                showToast('Could not save workflow. Please try again.', 'error');
+                showToast('Could not save process. Please try again.', 'error');
             }
         }
         
