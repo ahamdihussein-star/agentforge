@@ -49,6 +49,18 @@ class DepartmentService:
             return DepartmentService._db_to_core_dept(db_dept)
     
     @staticmethod
+    def delete_department(dept_id: str) -> bool:
+        """Delete a department from the database. Returns True if a row was removed."""
+        with get_db_session() as session:
+            db_dept = session.query(DBDepartment).filter_by(id=dept_id).first()
+            if db_dept:
+                session.delete(db_dept)
+                session.commit()
+                print(f"🗑️ [DATABASE] Department deleted: {dept_id[:8]}...")
+                return True
+            return False
+
+    @staticmethod
     def _db_to_core_dept(db_dept: DBDepartment) -> CoreDepartment:
         """Convert database Department to core Department model"""
         return CoreDepartment(

@@ -3206,8 +3206,19 @@ async def create_department(request: CreateDepartmentRequest, user: User = Depen
         manager_id=request.manager_id
     )
     security_state.departments[dept.id] = dept
+
+    # Persist to the database (primary store) so process routing / identity
+    # resolution — which read from the DB — can see this department.
+    # Without this, a department created from the Security UI is invisible to
+    # approval/notification routing (split-brain). Mirrors create_group above.
+    try:
+        from database.services import DepartmentService
+        DepartmentService.save_department(dept)
+    except Exception as e:
+        print(f"⚠️ Error saving department to database: {e}")
+
     security_state.save_to_disk()
-    
+
     return {"status": "success", "department": dept.dict()}
 
 @router.delete("/departments/{dept_id}")
@@ -3223,8 +3234,16 @@ async def delete_department(dept_id: str, user: User = Depends(require_admin)):
             u.department_id = None
     
     del security_state.departments[dept_id]
+
+    # Remove from the database too (it's the primary store read by routing).
+    try:
+        from database.services import DepartmentService
+        DepartmentService.delete_department(dept_id)
+    except Exception as e:
+        print(f"⚠️ Error deleting department from database: {e}")
+
     security_state.save_to_disk()
-    
+
     return {"status": "success"}
 
 @router.get("/groups")
