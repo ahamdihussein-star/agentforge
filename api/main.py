@@ -8612,6 +8612,168 @@ async def test_llm_connection(request: Dict[str, Any]):
         return {"status": "error", "message": f"All models failed: {failed[0]['message']}", "results": results}
 
 
+# ============================================================================
+# Agent public API & embeddable chatbot widget — expose an agent on any
+# website / web app / mobile app. Runs the SAME chat engine as the platform
+# (guardrails, tasks, tools, knowledge base) for anonymous visitors.
+# ============================================================================
+from fastapi import Request as _AFRequest
+from fastapi.responses import JSONResponse as _AFJSONResponse
+import secrets as _af_secrets
+
+def _af_load_integrations():
+    try:
+        from database.services import SystemSettingsService
+        data = SystemSettingsService.get_system_setting("agent_integrations")
+        return data if isinstance(data, dict) else {}
+    except Exception as e:
+        print(f"[Integration] load failed: {e}")
+        return {}
+
+def _af_save_integrations(data):
+    try:
+        from database.services import SystemSettingsService
+        SystemSettingsService.set_system_setting("agent_integrations", data, value_type='json', category='platform')
+        return True
+    except Exception as e:
+        print(f"[Integration] save failed: {e}")
+        return False
+
+def _af_base_url(request):
+    base = os.environ.get("PUBLIC_BASE_URL")
+    if base:
+        return base.rstrip("/")
+    try:
+        b = str(request.base_url).rstrip("/")
+        if b.startswith("http://") and "localhost" not in b and "127.0.0.1" not in b:
+            b = "https://" + b[len("http://"):]
+        return b
+    except Exception:
+        return ""
+
+def _af_cors():
+    return {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, X-API-Key, Authorization",
+        "Access-Control-Max-Age": "86400",
+    }
+
+def _af_integration_view(agent_id, cfg, base):
+    agent = app_state.agents.get(agent_id)
+    return {
+        "agent_id": agent_id,
+        "agent_name": getattr(agent, "name", "Agent") if agent else "Agent",
+        "enabled": bool((cfg or {}).get("enabled")),
+        "api_key": (cfg or {}).get("api_key"),
+        "endpoint": f"{base}/api/public/agents/{agent_id}/chat",
+        "widget_src": f"{base}/ui/embed/agent-widget.js",
+        "base_url": base,
+    }
+
+@app.get("/api/agents/{agent_id}/integration")
+async def get_agent_integration(agent_id: str, request: _AFRequest, current_user: User = Depends(get_current_user)):
+    ints = _af_load_integrations()
+    return _af_integration_view(agent_id, ints.get(agent_id) or {}, _af_base_url(request))
+
+@app.post("/api/agents/{agent_id}/integration/enable")
+async def enable_agent_integration(agent_id: str, request: _AFRequest, current_user: User = Depends(get_current_user)):
+    if agent_id not in app_state.agents:
+        raise HTTPException(404, "Agent not found")
+    ints = _af_load_integrations()
+    cfg = ints.get(agent_id) or {}
+    if not cfg.get("api_key"):
+        cfg["api_key"] = "af_pub_" + _af_secrets.token_hex(20)
+        cfg["created_at"] = datetime.utcnow().isoformat()
+    cfg["enabled"] = True
+    ints[agent_id] = cfg
+    _af_save_integrations(ints)
+    return _af_integration_view(agent_id, cfg, _af_base_url(request))
+
+@app.post("/api/agents/{agent_id}/integration/rotate")
+async def rotate_agent_integration(agent_id: str, request: _AFRequest, current_user: User = Depends(get_current_user)):
+    ints = _af_load_integrations()
+    cfg = ints.get(agent_id) or {}
+    cfg["api_key"] = "af_pub_" + _af_secrets.token_hex(20)
+    cfg["enabled"] = True
+    ints[agent_id] = cfg
+    _af_save_integrations(ints)
+    return _af_integration_view(agent_id, cfg, _af_base_url(request))
+
+@app.post("/api/agents/{agent_id}/integration/disable")
+async def disable_agent_integration(agent_id: str, request: _AFRequest, current_user: User = Depends(get_current_user)):
+    ints = _af_load_integrations()
+    cfg = ints.get(agent_id) or {}
+    cfg["enabled"] = False
+    ints[agent_id] = cfg
+    _af_save_integrations(ints)
+    return _af_integration_view(agent_id, cfg, _af_base_url(request))
+
+@app.options("/api/public/agents/{agent_id}/chat")
+async def public_agent_chat_preflight(agent_id: str):
+    return _AFJSONResponse({}, headers=_af_cors())
+
+@app.post("/api/public/agents/{agent_id}/chat")
+async def public_agent_chat(agent_id: str, request: _AFRequest):
+    """Public, API-key-authenticated chat for embedding an agent externally.
+    Uses the same chat engine as the in-platform chat (guardrails/tasks/tools/KB)."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    message = str((body or {}).get("message", "")).strip()
+    conv_id = (body or {}).get("conversation_id")
+    api_key = (request.headers.get("x-api-key") or request.headers.get("X-API-Key")
+               or (body or {}).get("api_key") or request.query_params.get("key"))
+
+    cfg = _af_load_integrations().get(agent_id)
+    if not cfg or not cfg.get("enabled") or not cfg.get("api_key"):
+        return _AFJSONResponse({"error": "This agent is not publicly available."}, status_code=403, headers=_af_cors())
+    if not api_key or api_key != cfg.get("api_key"):
+        return _AFJSONResponse({"error": "Invalid API key."}, status_code=401, headers=_af_cors())
+    if not message:
+        return _AFJSONResponse({"error": "message is required"}, status_code=400, headers=_af_cors())
+
+    agent = app_state.agents.get(agent_id)
+    if not agent:
+        try:
+            from database.services import AgentService
+            db_agent = AgentService.get_agent_by_id(agent_id, "org_default")
+            if db_agent:
+                agent = AgentData(**{k: v for k, v in db_agent.items() if k in AgentData.__fields__})
+                app_state.agents[agent_id] = agent
+        except Exception:
+            agent = None
+    if not agent:
+        return _AFJSONResponse({"error": "Agent not found"}, status_code=404, headers=_af_cors())
+
+    conv = app_state.conversations.get(conv_id) if conv_id else None
+    if not conv:
+        new_id = conv_id or ("pub-" + str(uuid.uuid4()))
+        conv = Conversation(
+            id=new_id, agent_id=agent_id, user_id="public", title="Public chat",
+            messages=[], created_at=datetime.utcnow().isoformat(),
+            updated_at=datetime.utcnow().isoformat(), access_cache=None,
+        )
+        app_state.conversations[new_id] = conv
+
+    try:
+        result = await process_test_agent_chat(agent, message, conv)
+        reply = result.get("content", "") if isinstance(result, dict) else str(result)
+        sources = result.get("sources", []) if isinstance(result, dict) else []
+        try:
+            conv.messages.append(ConversationMessage(role="user", content=_pii_redact_if(message, agent.guardrails)))
+            conv.messages.append(ConversationMessage(role="assistant", content=_pii_redact_if(reply, agent.guardrails)))
+            conv.messages = conv.messages[-20:]
+        except Exception:
+            pass
+        return _AFJSONResponse({"response": reply, "sources": sources, "conversation_id": conv.id}, headers=_af_cors())
+    except Exception as e:
+        print(f"[Public chat] error: {e}")
+        import traceback; traceback.print_exc()
+        return _AFJSONResponse({"error": "Agent failed to respond. Please try again."}, status_code=500, headers=_af_cors())
+
+
 @app.post("/api/settings/test-embedding")
 async def test_embedding_connection(request: Dict[str, Any]):
     """Test embedding provider connection"""
