@@ -1458,6 +1458,18 @@ async function saveSecuritySettings() {
 
 // Update navigate function to include security
 const originalNavigate = navigate;
+// Escape key closes the top-most transient overlay modal (role/user/tool dialogs appended
+// to <body>). Bound once. The static create wizard has its own Escape handling.
+if (typeof window !== 'undefined' && !window.__modalEscBound) {
+    window.__modalEscBound = true;
+    document.addEventListener('keydown', function(e){
+        if (e.key === 'Escape') {
+            var ms = document.querySelectorAll('div.fixed.inset-0.z-50.backdrop-blur-sm[id$="-modal"]');
+            if (ms.length) { ms[ms.length - 1].remove(); }
+        }
+    });
+}
+
 navigate = function(p, updateHash = true) {
     // DEBUG: Log only create navigation
     if (p === 'create') {
@@ -1484,9 +1496,17 @@ navigate = function(p, updateHash = true) {
         return;
     }
     
+    // Close any transient overlay modals (role/user/tool edit dialogs that get appended to
+    // <body>) so they don't linger over the next page. They share the same overlay class and
+    // an id ending in "-modal"; the static create wizard (<section id="page-create">) is not
+    // matched by this selector, so it is unaffected.
+    try {
+        document.querySelectorAll('div.fixed.inset-0.z-50.backdrop-blur-sm[id$="-modal"]').forEach(function(m){ m.remove(); });
+    } catch (_) {}
+
     // Call original navigate
     originalNavigate(p, updateHash);
-    
+
     // Initialize security page
     if (p === 'security') initSecurityPage();
 };
