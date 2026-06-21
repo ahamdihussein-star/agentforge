@@ -81,7 +81,7 @@ PROCESS_PATTERNS = {
     "scheduled_job": {
         "description": "Scheduled automated job",
         "triggers": ["schedule"],
-        "typical_nodes": ["start", "database_query", "loop", "http_request", "notification", "end"],
+        "typical_nodes": ["start", "database_query", "ai", "http_request", "notification", "end"],
     },
 }
 
