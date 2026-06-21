@@ -346,6 +346,62 @@ class AzureOpenAILLM(BaseLLMProvider):
         return ["gpt-4o", "gpt-4", "gpt-35-turbo"]  # Deployment names
 
 
+# ---------------------------------------------------------------------------
+# Generic, self-healing model resolution for Anthropic (Claude).
+# Same approach as Google: Anthropic retires dated model snapshots, so instead
+# of hard-coding a snapshot we discover the live models via the Models API
+# (GET /v1/models, cached) and pick the best match for the requested family
+# (opus / sonnet / haiku), then retry once on a 404 "model not found".
+# ---------------------------------------------------------------------------
+_ANTHROPIC_MODELS_CACHE = {"ts": 0.0, "models": []}
+
+async def _anthropic_list_models(api_key: str, force: bool = False) -> list:
+    import time
+    now = time.time()
+    if not force and _ANTHROPIC_MODELS_CACHE["models"] and (now - _ANTHROPIC_MODELS_CACHE["ts"] < 3600):
+        return _ANTHROPIC_MODELS_CACHE["models"]
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                "https://api.anthropic.com/v1/models",
+                headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+                params={"limit": 1000}, timeout=15.0,
+            )
+        if r.status_code == 200:
+            rows = r.json().get("data", []) or []
+            # Newest first (the API sorts by created_at desc; sort again defensively).
+            def _created(m):
+                return str(m.get("created_at") or "")
+            rows.sort(key=_created, reverse=True)
+            names = [m.get("id") for m in rows if m.get("id")]
+            if names:
+                _ANTHROPIC_MODELS_CACHE["models"] = names
+                _ANTHROPIC_MODELS_CACHE["ts"] = now
+                return names
+    except Exception as e:
+        print(f"[AnthropicLLM] ListModels failed: {e}")
+    return _ANTHROPIC_MODELS_CACHE["models"]
+
+def _anthropic_pick_model(available: list, requested: str) -> str:
+    if not available:
+        return requested or "claude-opus-4-5-20251101"
+    if requested and requested in available:
+        return requested
+    req = (requested or "").lower()
+    fam = "opus" if "opus" in req else ("haiku" if "haiku" in req else "sonnet")
+    # available is newest-first, so the first family match is the newest snapshot.
+    pool = [m for m in available if fam in m.lower()]
+    if not pool:
+        pool = [m for m in available if any(f in m.lower() for f in ("opus", "sonnet", "haiku"))]
+    if not pool:
+        pool = available
+    return pool[0]
+
+async def _anthropic_resolve_model(api_key: str, requested: str, force: bool = False) -> str:
+    avail = await _anthropic_list_models(api_key, force=force)
+    return _anthropic_pick_model(avail, requested)
+
+
 class AnthropicLLM(BaseLLMProvider):
     def __init__(self, config: LLMConfig):
         self.config = config
@@ -404,17 +460,32 @@ class AnthropicLLM(BaseLLMProvider):
             if not anthropic_messages:
                 anthropic_messages = [{"role": "user", "content": [{"type": "text", "text": "Hi"}]}]
             
+            # Resolve to a currently-available snapshot (self-healing, no hard-coded version).
+            requested_model = kwargs.get("model") or self.config.model or "claude-opus-4-5-20251101"
+            api_model = await _anthropic_resolve_model(self.api_key, requested_model)
+            print(f"[AnthropicLLM] Resolved model: {requested_model} -> {api_model}")
+
             # Build request kwargs - system must be a list for new Anthropic SDK
             request_kwargs = {
-                "model": kwargs.get("model", self.config.model),
+                "model": api_model,
                 "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
                 "messages": anthropic_messages
             }
             # Only add system if we have one (as a list of content blocks)
             if system_text.strip():
                 request_kwargs["system"] = [{"type": "text", "text": system_text}]
-            
-            response = await client.messages.create(**request_kwargs)
+
+            try:
+                response = await client.messages.create(**request_kwargs)
+            except anthropic.NotFoundError:
+                # Model retired since cache was built — refresh live and retry once.
+                _new = await _anthropic_resolve_model(self.api_key, requested_model, force=True)
+                if _new and _new != api_model:
+                    print(f"[AnthropicLLM] 404 on {api_model}; retrying with {_new}")
+                    request_kwargs["model"] = _new
+                    response = await client.messages.create(**request_kwargs)
+                else:
+                    raise
             text = response.content[0].text
             print(f"[AnthropicLLM] ✅ Got response: {len(text)} chars")
             return text
@@ -8317,6 +8388,20 @@ async def test_llm_connection(request: Dict[str, Any]):
     }
     
     models_to_test = provider_models.get(provider_name, ["gpt-4o-mini"])
+
+    # Anthropic: discover live models dynamically so we never test a retired snapshot.
+    if provider_name == "anthropic" and api_key:
+        try:
+            live = await _anthropic_list_models(api_key, force=True)
+            if live:
+                picks = []
+                for fam in ("opus", "sonnet", "haiku"):
+                    fam_m = [m for m in live if fam in m.lower()]
+                    if fam_m:
+                        picks.append(fam_m[0])
+                models_to_test = picks or live[:3]
+        except Exception as _e:
+            pass
 
     # Google: discover live models dynamically so we never test a retired version.
     if provider_name == "google" and api_key:
