@@ -3179,12 +3179,26 @@ async function wizCreate() {
         // REST API tools capture their endpoint into `config` during the wizard, but the
         // backend persists API tools from the `api_config` field. Without sending it the
         // tool was created with no Base URL/Endpoint ("API not configured"). Build it here.
+        // Collect the configured API fields ("Fields this API needs") so they
+        // are actually persisted. Without input_parameters the saved tool has
+        // no parameters, so the agent's call strips every argument and the API
+        // rejects it (e.g. 422 missing required field).
+        const _apiParams = (typeof apiParams !== 'undefined' && Array.isArray(apiParams)) ? apiParams : [];
         const _apiCfg = (wizState.type === 'api') ? {
             base_url: (wizState.data.config && wizState.data.config.base_url) || '',
             http_method: (wizState.data.config && wizState.data.config.method) || 'GET',
             endpoint_path: (wizState.data.config && wizState.data.config.path) || '',
             auth_type: (wizState.data.config && wizState.data.config.auth_type) || 'none',
-            auth_value: (wizState.data.config && wizState.data.config.auth_value) || ''
+            auth_value: (wizState.data.config && wizState.data.config.auth_value) || '',
+            input_parameters: _apiParams
+                .filter(p => p && p.name && String(p.name).trim())
+                .map(p => ({
+                    name: String(p.name).trim(),
+                    description: p.description || '',
+                    data_type: p.data_type || 'string',
+                    required: !!p.required,
+                    location: p.location || 'query'
+                }))
         } : undefined;
 
         const response = await fetch(url, {
