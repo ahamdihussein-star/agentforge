@@ -2487,6 +2487,44 @@
             if (!fromH && toH) {
                 // seg2: bendX→y2 at bendY level — different axis, OK.
             }
+            // ── Clarity pass: keep the edge clear of OTHER shapes too, not just
+            // its own two endpoints, so a line never runs through an unrelated
+            // node. Purely additive — it only moves the bend when a real
+            // crossing exists AND a clean alternative is found; otherwise the
+            // bend is left exactly as computed above (no regression). ──
+            if (r1 && r2) {
+                const others = (state._edgeNodeRects || [])
+                    .filter(o => o.el !== fromNode && o.el !== toNode)
+                    .map(o => o.rect);
+                const oPad = 8;
+                if (others.length && pathSegsCrossAnyRect(orthoSegsForBend(bendX, bendY, x1, y1, x2, y2, fromH, toH), others, oPad)) {
+                    let minL = Infinity, maxR = -Infinity, minT = Infinity, maxB = -Infinity;
+                    others.forEach(rr => {
+                        minL = Math.min(minL, rr.left); maxR = Math.max(maxR, rr.right);
+                        minT = Math.min(minT, rr.top); maxB = Math.max(maxB, rr.bottom);
+                    });
+                    const chanL = Math.min(minL, r1.left, r2.left) - 34;
+                    const chanR = Math.max(maxR, r1.right, r2.right) + 34;
+                    const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+                    const cands = [
+                        { x: chanR, y: midY }, { x: chanL, y: midY },
+                        { x: chanR, y: bendY }, { x: chanL, y: bendY },
+                        { x: bendX, y: minT - 34 }, { x: bendX, y: maxB + 34 },
+                        { x: chanR, y: y1 }, { x: chanL, y: y1 },
+                        { x: chanR, y: y2 }, { x: chanL, y: y2 },
+                    ];
+                    let best = null, bestCost = Infinity;
+                    for (const c of cands) {
+                        let cx = c.x, cy = c.y;
+                        if (!fromH && !toH && (cx - x1) * (x2 - cx) < 0) cx = midX;
+                        if (bendPathCrossesNodes(cx, cy, x1, y1, x2, y2, fromH, toH, r1, r2, checkPad)) continue;
+                        if (pathSegsCrossAnyRect(orthoSegsForBend(cx, cy, x1, y1, x2, y2, fromH, toH), others, oPad)) continue;
+                        const cost = Math.abs(cx - x1) + Math.abs(cy - y1) + Math.abs(cx - x2) + Math.abs(cy - y2);
+                        if (cost < bestCost) { best = { x: cx, y: cy }; bestCost = cost; }
+                    }
+                    if (best) { bendX = best.x; bendY = best.y; pathSource = 'clearOthers'; }
+                }
+            }
             let pathD;
             if (fromH && toH) {
                 pathD = `M ${x1} ${y1} L ${bendX} ${y1} L ${bendX} ${bendY} L ${bendX} ${y2} L ${x2} ${y2}`;
