@@ -2830,22 +2830,112 @@ async def execute_tool(tool_id: str, tool_type: str, arguments: Dict) -> Dict:
             return {"success": False, "error": "Slack webhook not configured"}
         
         elif tool_type == 'websearch':
-            # Web search (would need actual implementation with search API)
+            # Real web search via the configured provider (Tavily or Serper/Google).
             query = arguments.get('query', '')
-            return {
-                "success": True,
-                "message": f"Web search for '{query}' - requires search API integration",
-                "results": []
-            }
-        
+            if not query:
+                return {"success": False, "error": "No search query provided"}
+            cfg = tool.config or {}
+            provider = str(cfg.get('provider') or cfg.get('engine') or 'tavily').lower()
+            api_key = cfg.get('api_key') or cfg.get('apiKey') or cfg.get('key') or ''
+            if not api_key:
+                return {
+                    "success": False,
+                    "error": (
+                        f"This web search tool isn't configured yet — add a "
+                        f"{provider or 'Tavily/Serper'} API key in the tool's settings to enable real searches."
+                    ),
+                }
+            try:
+                async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+                    if provider in ('tavily', 'tavili'):
+                        resp = await client.post(
+                            "https://api.tavily.com/search",
+                            json={"api_key": api_key, "query": query, "max_results": 5,
+                                  "search_depth": "basic", "include_answer": True},
+                        )
+                        if resp.status_code >= 400:
+                            return {"success": False, "error": f"Tavily error {resp.status_code}: {resp.text[:200]}"}
+                        d = resp.json()
+                        results = [
+                            {"title": r.get("title"), "url": r.get("url"),
+                             "snippet": (r.get("content") or "")[:500]}
+                            for r in (d.get("results") or [])
+                        ]
+                        return {"success": True, "answer": d.get("answer"), "results": results}
+                    elif provider in ('serper', 'google', 'serper.dev'):
+                        resp = await client.post(
+                            "https://google.serper.dev/search",
+                            headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
+                            json={"q": query, "num": 5},
+                        )
+                        if resp.status_code >= 400:
+                            return {"success": False, "error": f"Serper error {resp.status_code}: {resp.text[:200]}"}
+                        d = resp.json()
+                        results = [
+                            {"title": r.get("title"), "url": r.get("link"), "snippet": r.get("snippet")}
+                            for r in (d.get("organic") or [])
+                        ][:5]
+                        return {"success": True, "results": results}
+                    else:
+                        return {"success": False, "error": f"Unsupported web search provider: {provider}. Use 'tavily' or 'serper'."}
+            except Exception as e:
+                return {"success": False, "error": f"Web search failed: {e}"}
+
         elif tool_type == 'database':
-            # Database query (would need actual DB connection)
+            # Real database query via the configured connection. Read-only by
+            # default for safety. Honest error if not configured.
             query = arguments.get('query', '')
-            return {
-                "success": True,
-                "message": f"Database query - requires actual DB connection",
-                "query": query
-            }
+            if not query:
+                return {"success": False, "error": "No query provided"}
+            cfg = tool.config or {}
+            db_type = str(cfg.get('db_type') or cfg.get('type') or '').lower()
+            conn_str = cfg.get('connection') or cfg.get('connection_string') or cfg.get('uri') or ''
+            if not conn_str:
+                host = cfg.get('host'); port = cfg.get('port'); dbname = cfg.get('database')
+                user = cfg.get('user') or cfg.get('username'); pwd = cfg.get('password')
+                if db_type in ('postgresql', 'postgres') and host and dbname:
+                    conn_str = f"postgresql://{user}:{pwd}@{host}:{port or 5432}/{dbname}"
+                elif db_type == 'sqlite' and (cfg.get('path') or dbname):
+                    conn_str = cfg.get('path') or dbname
+            if not db_type or not conn_str:
+                return {
+                    "success": False,
+                    "error": (
+                        "This database tool isn't connected yet — set the database type and "
+                        "connection (host/connection string) in the tool's settings to run real queries."
+                    ),
+                }
+            # Safety: only allow read-only statements from agent-driven queries.
+            _q = query.strip().rstrip(';')
+            if not re.match(r'^\s*(select|with|show|describe|explain)\b', _q, re.IGNORECASE):
+                return {"success": False, "error": "Only read-only queries (SELECT/SHOW/DESCRIBE/EXPLAIN) are allowed for safety."}
+            try:
+                if db_type in ('postgresql', 'postgres'):
+                    import psycopg2  # type: ignore
+                    conn = psycopg2.connect(conn_str)
+                    try:
+                        cur = conn.cursor()
+                        cur.execute(_q)
+                        cols = [c[0] for c in (cur.description or [])]
+                        rows = [dict(zip(cols, r)) for r in cur.fetchmany(50)]
+                        return {"success": True, "rows": rows, "row_count": len(rows)}
+                    finally:
+                        conn.close()
+                elif db_type == 'sqlite':
+                    import sqlite3
+                    conn = sqlite3.connect(conn_str)
+                    try:
+                        conn.row_factory = sqlite3.Row
+                        cur = conn.cursor()
+                        cur.execute(_q)
+                        rows = [dict(r) for r in cur.fetchmany(50)]
+                        return {"success": True, "rows": rows, "row_count": len(rows)}
+                    finally:
+                        conn.close()
+                else:
+                    return {"success": False, "error": f"Database type '{db_type}' isn't supported for live queries yet (supported: postgresql, sqlite)."}
+            except Exception as e:
+                return {"success": False, "error": f"Database query failed: {e}"}
         
         else:
             return {"success": False, "error": f"Unknown tool type: {tool_type}"}
