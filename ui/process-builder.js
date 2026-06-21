@@ -7327,8 +7327,55 @@
                 layers.get(d).push(n);
             });
 
-            // Preserve any existing left-to-right intent
+            // Initial within-layer order: preserve any existing left-to-right intent
+            const layerKeys = Array.from(layers.keys()).sort((a, b) => a - b);
             layers.forEach(layer => layer.sort((a, b) => ((a?.x ?? 0) - (b?.x ?? 0))));
+
+            // ── Crossing reduction (barycenter heuristic) ──────────────────
+            // Reorder nodes within each layer so each sits near the average
+            // position of its neighbours in the adjacent layer. A few up/down
+            // sweeps sharply cut edge crossings, so complex graphs read cleanly.
+            const _parentsOf = new Map();
+            edges.forEach(e => {
+                const from = String(e.from || e.source || '');
+                const to = String(e.to || e.target || '');
+                if (!from || !to) return;
+                if (!_parentsOf.has(to)) _parentsOf.set(to, []);
+                _parentsOf.get(to).push(from);
+            });
+            const _indexInLayer = () => {
+                const idx = new Map();
+                layerKeys.forEach(d => (layers.get(d) || []).forEach((n, i) => idx.set(String(n.id), i)));
+                return idx;
+            };
+            for (let sweep = 0; sweep < 4; sweep++) {
+                const idx = _indexInLayer();
+                const downward = (sweep % 2 === 0);
+                const order = downward ? layerKeys : [...layerKeys].reverse();
+                order.forEach(d => {
+                    const layer = layers.get(d);
+                    if (!layer || layer.length < 2) return;
+                    const bary = new Map();
+                    layer.forEach(n => {
+                        const nbrs = downward
+                            ? (_parentsOf.get(String(n.id)) || [])
+                            : ((out.get(String(n.id)) || []).map(e => e.to));
+                        const positions = nbrs.map(id => idx.get(String(id))).filter(v => v != null);
+                        const key = positions.length
+                            ? positions.reduce((a, b) => a + b, 0) / positions.length
+                            : (idx.get(String(n.id)) ?? 0);
+                        bary.set(String(n.id), key);
+                    });
+                    // stable sort by barycenter, keeping current order as tiebreak
+                    const withIdx = layer.map((n, i) => ({ n, i }));
+                    withIdx.sort((a, b) => {
+                        const ka = bary.get(String(a.n.id)) ?? a.i;
+                        const kb = bary.get(String(b.n.id)) ?? b.i;
+                        return ka === kb ? a.i - b.i : ka - kb;
+                    });
+                    layers.set(d, withIdx.map(w => w.n));
+                });
+            }
 
             // Condition: keep YES on the left, NO on the right when in same layer
             nodes.filter(n => n.type === 'condition').forEach(cond => {
@@ -7351,8 +7398,10 @@
 
             const centerX = (typeof opts.centerX === 'number') ? opts.centerX : 420;
             const topY = (typeof opts.topY === 'number') ? opts.topY : 120;
-            const vGap = (typeof opts.vGap === 'number') ? opts.vGap : 200;
-            const hGap = (typeof opts.hGap === 'number') ? opts.hGap : 300;
+            // Generous spacing keeps shapes + their below-labels from crowding
+            // the next row and gives edges room to breathe.
+            const vGap = (typeof opts.vGap === 'number') ? opts.vGap : 240;
+            const hGap = (typeof opts.hGap === 'number') ? opts.hGap : 340;
 
             const newNodes = nodes.map(n => ({ ...n }));
             const newById = new Map(newNodes.map(n => [String(n.id), n]));
