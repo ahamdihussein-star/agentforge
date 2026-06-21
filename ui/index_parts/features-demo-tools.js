@@ -244,7 +244,7 @@
                             </div>
                             <div style="flex:1;min-width:0;overflow:hidden;width:100%;">
                                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                                    <h3 class="agent-title" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">${a.name}</h3>
+                                    <h3 class="agent-title" style="font-weight:600;flex:1 1 100%;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;">${a.name}</h3>
                                     <span class="text-xs px-2 py-0.5 rounded-full ${a.status === 'published' ? 'bg-purple-500/20 text-purple-400' : 'bg-yellow-500/20 text-yellow-400'}">${a.status}</span>
                                 </div>
                                 <p class="agent-desc text-sm text-gray-400 mt-1 line-clamp-2">${a.goal}</p>

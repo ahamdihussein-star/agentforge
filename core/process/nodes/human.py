@@ -29,6 +29,28 @@ def _looks_like_uuid(value: str) -> bool:
     return bool(_UUID_RE.match((value or "").strip()))
 
 
+def _get_test_role_override(context: Any, node: Any) -> Optional[Dict[str, Any]]:
+    """Return the test-run role override for this node, if any.
+
+    The builder's "Test run" can cast a specific platform user per approval /
+    notification node. Those choices ride along in
+    trigger_input['_test_role_overrides'], keyed by node id, each value a dict
+    like {"user_id": ..., "email": ..., "name": ...}. Returns the dict for the
+    given node, or None. Never raises.
+    """
+    try:
+        trigger_input = getattr(context, 'trigger_input', None) or {}
+        overrides = trigger_input.get('_test_role_overrides') or {}
+        if not isinstance(overrides, dict):
+            return None
+        ov = overrides.get(getattr(node, 'id', None))
+        if isinstance(ov, dict) and (ov.get('user_id') or ov.get('email')):
+            return ov
+        return None
+    except Exception:
+        return None
+
+
 def _to_assignee_id_list(value: Any) -> List[str]:
     """Normalize approvers/assignees to a list of string IDs. Handles list of IDs, list of objects with id/value, or single ID."""
     if value is None:
@@ -91,6 +113,18 @@ class ApprovalNodeExecutor(BaseNodeExecutor):
         assignee_ids_raw = self.get_config_value(node, 'assignee_ids', [])
         if not assignee_ids_raw:
             assignee_ids_raw = self.get_config_value(node, 'approvers', [])
+
+        # ── TEST-MODE role override ──────────────────────────────────────
+        # The builder's "Test run" lets the tester cast a specific platform
+        # user per node. When present, trigger_input._test_role_overrides is
+        # keyed by node id; an override here pins the approver to the chosen
+        # user (bypassing directory/manager resolution) so the test goes to
+        # exactly who the tester picked.
+        _test_ovr = _get_test_role_override(context, node)
+        if _test_ovr and _test_ovr.get('user_id'):
+            assignee_source = 'platform_user'
+            assignee_type = 'user'
+            assignee_ids_raw = [str(_test_ovr['user_id'])]
 
         # Initialize logs early so all resolution branches can append to it
         logs = [f"Creating approval request: {title}"]
@@ -1607,6 +1641,13 @@ class NotificationNodeExecutor(BaseNodeExecutor):
             single = self.get_config_value(node, 'recipient')
             if single:
                 recipients = [single]
+        # ── TEST-MODE role override ──────────────────────────────────────
+        # If the tester cast a specific user for this notification node in the
+        # builder's "Test run", send to that person instead of the configured
+        # recipient. We use the chosen email directly (passes through resolution).
+        _test_ovr = _get_test_role_override(context, node)
+        if _test_ovr and (_test_ovr.get('email') or _test_ovr.get('user_id')):
+            recipients = [_test_ovr.get('email') or str(_test_ovr.get('user_id'))]
         title = self.get_config_value(node, 'title', '')
         message = self.get_config_value(node, 'message', '')
         template_id = self.get_config_value(node, 'template')
