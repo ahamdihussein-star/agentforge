@@ -282,12 +282,59 @@
     for (var i = 0; i < batch.length; i++) replaceNode(batch[i]);
   }
 
+  // ---- Tile contrast: whiten icons that sit on a saturated/gradient tile ----
+  // A gradient-stroke or colored icon disappears when its tile background is the
+  // same accent color. Detect a saturated/gradient backed ancestor and force the
+  // icon white. Neutral page/sidebar/card backgrounds (low chroma) are left alone
+  // so brand-gradient + status icons keep their color there.
+  function _parseRgb(c) {
+    var m = (c || '').match(/rgba?\(([^)]+)\)/); if (!m) return null;
+    var p = m[1].split(',').map(parseFloat);
+    return { r: p[0], g: p[1], b: p[2], a: p.length >= 4 ? p[3] : 1 };
+  }
+  function _over(f, b) { var a = f.a; return { r: f.r * a + b.r * (1 - a), g: f.g * a + b.g * (1 - a), b: f.b * a + b.b * (1 - a), a: 1 }; }
+  function _lum(c) { var a = [c.r, c.g, c.b].map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2]; }
+  function _chroma(c) { return Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b); }
+  function wantsWhite(svg) {
+    var n = svg.parentNode, depth = 0, acc = { r: 0, g: 0, b: 0, a: 0 };
+    while (n && n.nodeType === 1 && depth < 5) {
+      var cs;
+      try { cs = getComputedStyle(n); } catch (e) { return false; }
+      if (cs.backgroundImage && cs.backgroundImage.indexOf('gradient') >= 0) return true;
+      var c = _parseRgb(cs.backgroundColor);
+      if (c && c.a > 0) {
+        acc = acc.a === 0 ? { r: c.r, g: c.g, b: c.b, a: c.a } : _over(acc, c);
+        if (acc.a >= 0.85) return _chroma(acc) > 45 && _lum(acc) < 0.72;
+      }
+      n = n.parentNode; depth++;
+    }
+    return false;
+  }
+  function paintTiles(root) {
+    if (!root) return;
+    var el = root.nodeType === 1 ? root : (root.parentNode || document.body);
+    if (!el || !el.querySelectorAll) return;
+    var list = el.querySelectorAll ? el.querySelectorAll('svg.afi') : [];
+    for (var i = 0; i < list.length; i++) {
+      var svg = list[i];
+      if (svg.getAttribute('data-afi-tiled')) continue;
+      svg.setAttribute('data-afi-tiled', '1');
+      try { if (wantsWhite(svg)) svg.style.stroke = '#ffffff'; } catch (e) {}
+    }
+    // also handle the root itself if it is an icon
+    if (el.nodeType === 1 && el.classList && el.classList.contains('afi') && !el.getAttribute('data-afi-tiled')) {
+      el.setAttribute('data-afi-tiled', '1');
+      try { if (wantsWhite(el)) el.style.stroke = '#ffffff'; } catch (e) {}
+    }
+  }
+
   var queued = false, pending = [];
   function flush() {
     queued = false;
     var nodes = pending; pending = [];
     for (var i = 0; i < nodes.length; i++) {
       try { scan(nodes[i]); } catch (e) { /* never break the app over an icon */ }
+      try { paintTiles(nodes[i]); } catch (e) {}
     }
   }
   function enqueue(node) {
@@ -295,9 +342,23 @@
     if (!queued) { queued = true; (window.requestAnimationFrame || setTimeout)(flush, 16); }
   }
 
+  function repaintAllTiles() {
+    try {
+      var all = document.querySelectorAll('svg.afi[data-afi-tiled]');
+      for (var i = 0; i < all.length; i++) { all[i].removeAttribute('data-afi-tiled'); all[i].style.stroke = ''; }
+      paintTiles(document.body);
+    } catch (e) {}
+  }
+
   function start() {
     ensureDefs();
     try { scan(document.body); } catch (e) {}
+    try { paintTiles(document.body); } catch (e) {}
+    // Re-evaluate tile contrast when the theme changes (background colors shift).
+    try {
+      var themeObs = new MutationObserver(function () { (window.requestAnimationFrame || setTimeout)(repaintAllTiles, 16); });
+      themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    } catch (e) {}
     var obs = new MutationObserver(function (muts) {
       for (var i = 0; i < muts.length; i++) {
         var mu = muts[i];
