@@ -118,6 +118,14 @@
       #page-create [class*="text-yellow-3"] { color: color-mix(in srgb, #b45309 85%, #000) !important; }
       /* Keyboard hint chips (e.g. "Press Enter to add") — readable on any theme */
       #page-create kbd { background: color-mix(in srgb, var(--text-primary) 14%, var(--bg-card, #fff)) !important; color: var(--text-primary) !important; }
+      /* Dark tint surfaces (bg-gray-700/800/900 panels) look murky on light themes and
+         kill text contrast. Remap container surfaces to a subtle theme-neutral tint so the
+         text on them stays readable. Scoped to containers (div/span) — buttons untouched. */
+      #page-create div[class*="bg-gray-700"],
+      #page-create div[class*="bg-gray-800"],
+      #page-create div[class*="bg-gray-900"],
+      #page-create span[class*="bg-gray-800"],
+      #page-create label[class*="bg-gray-800"] { background-color: color-mix(in srgb, var(--text-primary) 6%, var(--bg-card, #fff)) !important; }
     </style>
 </head>
 <body class="text-white" style="height:100vh;overflow:hidden;margin:0;background:var(--bg-primary);color:var(--text-primary);">
