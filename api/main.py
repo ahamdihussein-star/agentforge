@@ -6145,10 +6145,10 @@ async def generate_agent_config(request: GenerateAgentConfigRequest):
             tool_models_note = ""
         
         # Find the best available LLM to use for generation
-        generation_llm = await _get_generation_llm()
-        if not generation_llm:
+        generation_llms = await _get_generation_llms()
+        if not generation_llms:
             raise HTTPException(503, "No LLM configured. Please add at least one LLM provider in Settings.")
-        
+
         # Build the dynamic prompt
         # Include available platform tools if provided (sanitized by frontend)
         tools_block = ""
@@ -6257,7 +6257,8 @@ Remember: EVERY value must be specifically chosen for THIS agent's goal. No defa
         
         # Call the LLM
         try:
-            response_text = await generation_llm.generate(
+            response_text = await _generation_generate(
+                generation_llms,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
@@ -6353,6 +6354,64 @@ async def _get_generation_llm():
     
     print("[Generation LLM] No LLM provider found!")
     return None
+
+
+async def _get_generation_llms():
+    """Ordered list of usable generation LLMs from configured providers (for fallback).
+    Lets generation survive one provider having an invalid/expired key by trying the next."""
+    llms = []
+    priority_providers = ["openai", "anthropic", "google", "groq", "mistral", "deepseek", "cohere"]
+    seen = set()
+    for provider_name in priority_providers:
+        for provider in app_state.settings.llm_providers:
+            provider_type = provider.provider.lower() if provider.provider else ""
+            if provider_type != provider_name or not provider.api_key:
+                continue
+            key_id = (provider_type, provider.api_key)
+            if key_id in seen:
+                continue
+            seen.add(key_id)
+            try:
+                if provider_type == "openai":
+                    model = provider.models[0] if provider.models else "gpt-4o"
+                    llms.append(OpenAIDirectLLM(api_key=provider.api_key, model=model))
+                elif provider_type == "anthropic":
+                    model = provider.models[0] if provider.models else "claude-opus-4-5-20251101"
+                    llms.append(AnthropicDirectLLM(api_key=provider.api_key, model=model))
+                else:
+                    llm = await ProviderFactory.create(
+                        LLMProvider(provider.provider),
+                        api_key=provider.api_key,
+                        api_base=provider.api_base,
+                        model=provider.models[0] if provider.models else None
+                    )
+                    llms.append(llm)
+            except Exception as e:
+                print(f"[Generation LLM] Failed to create {provider_name}: {e}")
+                continue
+    if not llms:
+        openai_key = os.getenv("OPENAI_API_KEY")
+        if openai_key:
+            llms.append(OpenAIDirectLLM(api_key=openai_key, model="gpt-4o"))
+    return llms
+
+
+async def _generation_generate(llms, messages, **kwargs):
+    """Try each generation LLM in priority order; fall back to the next on any failure
+    (e.g. invalid key, retired model). Raises the last error only if ALL candidates fail."""
+    last_err = None
+    total = len(llms or [])
+    for i, llm in enumerate(llms or []):
+        try:
+            return await llm.generate(messages=messages, **kwargs)
+        except Exception as e:
+            last_err = e
+            label = getattr(llm, "model", llm.__class__.__name__)
+            print(f"[Generation LLM] Candidate {i+1}/{total} ({label}) failed: {str(e)[:160]}; trying next…")
+            continue
+    if last_err:
+        raise last_err
+    raise Exception("No generation LLM available")
 
 
 class OpenAIDirectLLM:
@@ -6650,8 +6709,8 @@ async def generate_demo_kit(request: GenerateDemoKitRequest, current_user: User 
         owner_id = str(current_user.id) if current_user else "system"
         
         # Get LLM for generation
-        generation_llm = await _get_generation_llm()
-        if not generation_llm:
+        generation_llms = await _get_generation_llms()
+        if not generation_llms:
             raise HTTPException(503, "No LLM configured. Please add at least one LLM provider in Settings.")
         
         # Build the prompt
