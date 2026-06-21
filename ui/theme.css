@@ -770,3 +770,13 @@ a:focus-visible {
 .bg-indigo-500 > svg, .bg-violet-500 > svg, .bg-teal-500 > svg {
     stroke: #ffffff !important;
 }
+
+/* 2-line clamp helper for card titles (replaces aggressive single-line ellipsis) */
+.af-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.3;
+    word-break: break-word;
+}

@@ -202,7 +202,7 @@
                                     🔄
                                 </div>
                                 <div class="flex-1 min-w-0">
-                                    <h3 class="font-semibold text-white truncate">${a.name}</h3>
+                                    <h3 class="font-semibold text-white af-clamp-2">${a.name}</h3>
                                     <div class="flex items-center gap-2 mt-1">
                                         <span class="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">Workflow</span>
                                         <span class="text-xs px-2 py-0.5 rounded-full ${a.status === 'published' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}">${a.status}</span>
@@ -1785,7 +1785,7 @@
                         <span style="font-size:1.75rem;flex-shrink:0;">${icons[t.type]||'🔧'}</span>
                         <div style="flex:1;min-width:0;overflow:hidden;width:100%;">
                             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                                <h3 class="tool-title" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">${escHtml(t.name)}</h3>
+                                <h3 class="tool-title" style="font-weight:600;flex:1 1 100%;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;">${escHtml(t.name)}</h3>
                                 <span class="tool-type-badge">${t.type.toUpperCase()}</span>
                                 ${ownerBadge}
                             </div>
@@ -1795,7 +1795,7 @@
                     <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border-color);padding-top:12px;margin-top:8px;">
                         <div class="tool-stats" style="display:flex;gap:8px;font-size:0.75rem;color:var(--text-muted);align-items:center;">
                             <span title="Access: ${t.access_type || 'owner_only'}">${accessIcon}</span>
-                            <span>🔧 ${t.type}</span>${mockLabel}
+                            ${mockLabel}
                         </div>
                         <div style="display:flex;gap:6px;">
                             ${canEdit ? `<button onclick="event.stopPropagation();editTool('${t.id}')" class="tool-btn edit" title="Edit">✏️</button>` : ''}
