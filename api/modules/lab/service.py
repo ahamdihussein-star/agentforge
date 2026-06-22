@@ -492,15 +492,22 @@ Return only valid JSON, no markdown or explanation."""
                     model="gpt-4o-mini",
                     messages=[
                         {"role": "system", "content": (
-                            "You are a professional document writer. "
-                            "Generate a COMPLETE, FINISHED document with ALL data filled in. "
-                            "Use realistic company names, people names, addresses, dates, numbers, and details. "
-                            "NEVER use placeholders like [Company Name], [Date], [Value], or any bracketed text. "
-                            "Every field must contain a realistic value. "
-                            "Use markdown for structure (headings, lists, bold). "
-                            "The document must look like a real business document ready to use."
+                            "You are a professional document writer. Produce a COMPLETE, FINISHED, real-looking "
+                            "business document with ALL data filled in.\n"
+                            "FORMATTING RULES (the markdown is rendered into a real Word/PDF document, so follow exactly):\n"
+                            "- Start directly with the body. Do NOT repeat the document title (it is added automatically).\n"
+                            "- Use '## Section Heading' for each section, never bold text as a fake heading.\n"
+                            "- Present structured / key-value information (passenger details, line items, specs, "
+                            "totals, etc.) as proper MARKDOWN TABLES using pipes, e.g.\n"
+                            "    | Field | Value |\n    | --- | --- |\n    | Name | Ahmed Hamdy |\n"
+                            "  Tables render as real bordered tables and look far more professional than bullet lists.\n"
+                            "- Use '- ' only for genuine bullet lists (terms, notes), and **bold** sparingly for emphasis.\n"
+                            "- NEVER output horizontal-rule separator lines (---, ***, ___). Use section headings instead.\n"
+                            "- NEVER use placeholders like [Company Name] or [Date]; every value must be realistic and specific.\n"
+                            "- Match the real-world layout and tone of the requested document type "
+                            "(e.g. a ticket, invoice, contract, letter, or report)."
                         )},
-                        {"role": "user", "content": f"Write a complete, professional document with all data filled in for:\n\n{description}"}
+                        {"role": "user", "content": f"Write a complete, professional, realistic document with all data filled in for:\n\n{description}"}
                     ],
                     temperature=0.7,
                     max_tokens=3000
@@ -971,6 +978,11 @@ RULES:
         while i < len(lines):
             line = lines[i].strip()
             if not line:
+                i += 1
+                continue
+
+            # Skip markdown horizontal rules (---, ***, ___) — they otherwise print literally.
+            if re.match(r'^(-{3,}|\*{3,}|_{3,})$', line):
                 i += 1
                 continue
 
