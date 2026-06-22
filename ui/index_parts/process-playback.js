@@ -1564,6 +1564,17 @@
                 ];
             }
             
+            // TEST MODE (admin run): the requester is ALWAYS the logged-in user, so any
+            // requester/submitter identity field is auto-filled and locked — never asked.
+            triggerInputs.forEach(input => {
+                if (_isRequesterField(input) && !(input.prefill && input.prefill.source === 'currentUser')) {
+                    const wantsEmail = input.type === 'email' || /email/i.test(((input.id || '') + ' ' + (input.label || '')));
+                    input.prefill = { source: 'currentUser', key: wantsEmail ? 'email' : 'name' };
+                    input.readOnly = true;
+                    input.required = false;
+                }
+            });
+
             // Build form HTML (with optional description from LLM)
             formContainer.innerHTML = triggerInputs.map(input => {
                 const required = input.required ? '<span style="color: var(--danger);">*</span>' : '';
@@ -1624,6 +1635,79 @@
             applyProcessPrefill(triggerInputs);
             setupProcessDerivedFields(triggerInputs);
             window._processInputs = triggerInputs;
+
+            // TEST MODE: let the tester choose approvers (don't auto-resolve managers).
+            _renderTestApproverPicker(processDef);
+        }
+
+        // ---- TEST MODE helpers (admin run) ----
+        function _isRequesterField(input) {
+            const t = (((input && input.id) || '') + ' ' + ((input && input.label) || '')).toLowerCase();
+            if (/\b(requester|requestor|submitter)\b/.test(t)) return true;
+            if (/submitted[_ ]?by/.test(t)) return true;
+            if (/\bemployee\b/.test(t) && /(name|email)/.test(t)) return true;
+            return false;
+        }
+
+        let _afOrgUsersCache = null;
+        async function _loadOrgUsers() {
+            if (_afOrgUsersCache) return _afOrgUsersCache;
+            try {
+                const r = await fetch(API + '/api/security/users?limit=500', { headers: getAuthHeaders() });
+                if (!r.ok) return [];
+                const d = await r.json();
+                _afOrgUsersCache = (d.users || [])
+                    .map(u => ({ id: u.id, email: u.email || '', name: u.name || u.username || u.email || 'User' }))
+                    .filter(u => u.id);
+                return _afOrgUsersCache;
+            } catch (_) { return []; }
+        }
+
+        function _getProcessApprovalNodes(processDef) {
+            let def = processDef;
+            if (typeof def === 'string') { try { def = JSON.parse(def); } catch (_) { def = {}; } }
+            const nodes = (def && Array.isArray(def.nodes)) ? def.nodes : [];
+            return nodes
+                .filter(n => String((n && n.type) || '').toLowerCase().trim() === 'approval')
+                .map((n, i) => ({
+                    id: n.id || ('approval_' + i),
+                    label: (n.config && (n.config.label || n.config.name)) || n.name || n.label || ('Approval step ' + (i + 1))
+                }));
+        }
+
+        async function _renderTestApproverPicker(processDef) {
+            const nodes = _getProcessApprovalNodes(processDef);
+            window._processApprovalNodes = nodes;
+            const formContainer = document.getElementById('process-form-fields');
+            const existing = document.getElementById('process-test-approvers');
+            if (existing) existing.remove();
+            if (!formContainer || !nodes.length) return;
+
+            const rows = nodes.map(n => `
+                <div style="margin-top:10px;">
+                    <label class="text-sm mb-1 block" style="color: var(--text-secondary);">Approver for "${n.label}" <span style="color: var(--danger);">*</span></label>
+                    <select id="pf-approver-${n.id}" class="input-field w-full rounded-lg px-4 py-3" data-approver-node="${n.id}">
+                        <option value="">Loading users…</option>
+                    </select>
+                </div>`).join('');
+
+            const html = `
+                <div id="process-test-approvers" style="margin-top:18px;padding:14px;border:1px solid var(--border-color);border-radius:12px;background:color-mix(in srgb, var(--accent-primary) 6%, var(--bg-card));">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
+                        <span style="font-size:11px;font-weight:700;letter-spacing:.04em;color:#fff;background:var(--accent-primary);padding:2px 8px;border-radius:999px;">TEST MODE</span>
+                        <span class="text-sm" style="color:var(--text-secondary);">You are the requester. Choose who approves for this test run.</span>
+                    </div>
+                    ${rows}
+                </div>`;
+            formContainer.insertAdjacentHTML('beforeend', html);
+
+            const users = await _loadOrgUsers();
+            const opts = '<option value="">Select approver…</option>' +
+                users.map(u => `<option value="${u.id}">${u.name}${u.email ? ' — ' + u.email : ''}</option>`).join('');
+            nodes.forEach(n => {
+                const sel = document.getElementById(`pf-approver-${n.id}`);
+                if (sel) sel.innerHTML = opts;
+            });
         }
         
         async function uploadProcessRunFile(fileObj) {
