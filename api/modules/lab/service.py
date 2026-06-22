@@ -1014,39 +1014,75 @@ RULES:
         doc.save(filepath)
         return os.path.getsize(filepath)
     
+    @staticmethod
+    def _md_to_rl(text):
+        """Convert inline markdown to ReportLab markup (escapes &<> then **bold**, *italic*, `code`)."""
+        import html as _html
+        t = _html.escape(text or '')
+        t = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', t)
+        t = re.sub(r'`(.+?)`', r'<font face="Courier">\1</font>', t)
+        t = re.sub(r'(?<!\*)\*(?!\*)([^*]+?)\*(?!\*)', r'<i>\1</i>', t)
+        return t
+
     @classmethod
     def _create_pdf(cls, filepath: str, title: str, content: str) -> int:
-        """Create a PDF document"""
+        """Create a PDF document from markdown (renders bold, bullets and tables)."""
+        from reportlab.platypus import Table, TableStyle
+        from reportlab.lib import colors
         doc = SimpleDocTemplate(filepath, pagesize=A4)
         styles = getSampleStyleSheet()
         story = []
-        
-        # Title
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=24,
-            spaceAfter=30
-        )
-        story.append(Paragraph(title, title_style))
+
+        title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=24, spaceAfter=24)
+        story.append(Paragraph(cls._md_to_rl(title), title_style))
         story.append(Spacer(1, 12))
-        
-        # Content
-        for line in content.split('\n'):
-            line = line.strip()
+
+        lines = content.split('\n')
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
             if not line:
-                story.append(Spacer(1, 12))
-                continue
-            
-            if line.startswith('# '):
-                story.append(Paragraph(line[2:], styles['Heading1']))
+                story.append(Spacer(1, 8)); i += 1; continue
+            # Skip horizontal rules
+            if re.match(r'^(-{3,}|\*{3,}|_{3,})$', line):
+                i += 1; continue
+            # Markdown table -> ReportLab Table
+            if line.startswith('|') and i + 1 < len(lines) and cls._is_md_table_sep(lines[i + 1]):
+                header = cls._md_table_cells(line)
+                rows = []
+                j = i + 2
+                while j < len(lines) and lines[j].strip().startswith('|'):
+                    rows.append(cls._md_table_cells(lines[j])); j += 1
+                cell = ParagraphStyle('cell', parent=styles['Normal'], fontSize=9, leading=12)
+                data = [[Paragraph(cls._md_to_rl(c), cell) for c in header]] + \
+                       [[Paragraph(cls._md_to_rl(c), cell) for c in r] for r in rows]
+                tbl = Table(data, hAlign='LEFT')
+                tbl.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f3a5f')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f3f6fb')]),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 6), ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                    ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ]))
+                story.append(tbl); story.append(Spacer(1, 10)); i = j; continue
+
+            if line.startswith('### '):
+                story.append(Paragraph(cls._md_to_rl(line[4:]), styles['Heading3']))
             elif line.startswith('## '):
-                story.append(Paragraph(line[3:], styles['Heading2']))
-            elif line.startswith('### '):
-                story.append(Paragraph(line[4:], styles['Heading3']))
+                story.append(Paragraph(cls._md_to_rl(line[3:]), styles['Heading2']))
+            elif line.startswith('# '):
+                story.append(Paragraph(cls._md_to_rl(line[2:]), styles['Heading1']))
+            elif line.startswith('- ') or line.startswith('* '):
+                story.append(Paragraph(cls._md_to_rl(line[2:]), styles['Normal'], bulletText='•'))
+            elif re.match(r'^\d+\.\s', line):
+                story.append(Paragraph(cls._md_to_rl(re.sub(r'^\d+\.\s', '', line)), styles['Normal'], bulletText='•'))
             else:
-                story.append(Paragraph(line, styles['Normal']))
-        
+                story.append(Paragraph(cls._md_to_rl(line), styles['Normal']))
+            i += 1
+
         doc.build(story)
         return os.path.getsize(filepath)
     
