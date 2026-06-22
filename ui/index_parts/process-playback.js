@@ -1787,6 +1787,28 @@
                 }
             }
             
+            // TEST MODE: requester is the logged-in user; approvers are chosen here
+            // (not auto-resolved from the org chart). Pass them as per-node test overrides.
+            const _approvalNodes = window._processApprovalNodes || [];
+            if (_approvalNodes.length) {
+                const overrides = {};
+                for (const n of _approvalNodes) {
+                    const sel = document.getElementById(`pf-approver-${n.id}`);
+                    const uid = sel ? sel.value : '';
+                    if (!uid) {
+                        showToast(`Please select an approver for: ${n.label}`, 'error');
+                        if (sel) sel.focus();
+                        return;
+                    }
+                    const u = (_afOrgUsersCache || []).find(x => String(x.id) === String(uid));
+                    overrides[n.id] = { user_id: String(uid), email: (u && u.email) || '', name: (u && u.name) || (u && u.email) || '' };
+                }
+                triggerData._test_role_overrides = overrides;
+            }
+            if (typeof currentUser !== 'undefined' && currentUser && currentUser.id) {
+                triggerData._test_requester_id = String(currentUser.id);
+            }
+
             // Switch to execution status view
             document.getElementById('process-trigger-form').classList.add('hidden');
             document.getElementById('process-execution-status').classList.remove('hidden');
