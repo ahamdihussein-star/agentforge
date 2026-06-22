@@ -944,26 +944,47 @@ RULES:
             s = s[:-1]
         return [c.strip() for c in s.split('|')]
 
+    @staticmethod
+    def _shade_cell(cell, hex_fill):
+        """Apply a solid background fill to a table cell (python-docx has no direct API)."""
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
+        tcPr = cell._tc.get_or_add_tcPr()
+        shd = OxmlElement('w:shd')
+        shd.set(qn('w:val'), 'clear')
+        shd.set(qn('w:color'), 'auto')
+        shd.set(qn('w:fill'), hex_fill)
+        tcPr.append(shd)
+
+    # Header fill + zebra stripe used for all generated tables.
+    _TABLE_HEADER_FILL = '1F3A5F'
+    _TABLE_ZEBRA_FILL = 'EEF2F9'
+
     @classmethod
     def _docx_table(cls, doc, header, rows):
+        from docx.shared import RGBColor
         ncols = max(len(header), max((len(r) for r in rows), default=0)) or 1
         table = doc.add_table(rows=1, cols=ncols)
-        for st in ('Light Grid Accent 1', 'Light List Accent 1', 'Table Grid'):
-            try:
-                table.style = st
-                break
-            except Exception:
-                continue
+        try:
+            table.style = 'Table Grid'  # clean thin borders; we colour cells ourselves
+        except Exception:
+            pass
+        # Header row: navy fill + white bold text (readable, professional).
         hdr = table.rows[0].cells
         for c in range(ncols):
             hdr[c].text = ''
+            cls._shade_cell(hdr[c], cls._TABLE_HEADER_FILL)
             cls._md_runs(hdr[c].paragraphs[0], header[c] if c < len(header) else '')
             for run in hdr[c].paragraphs[0].runs:
                 run.bold = True
-        for r in rows:
+                run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+        # Body rows: zebra striping for readability.
+        for ri, r in enumerate(rows):
             cells = table.add_row().cells
             for c in range(ncols):
                 cells[c].text = ''
+                if ri % 2 == 1:
+                    cls._shade_cell(cells[c], cls._TABLE_ZEBRA_FILL)
                 cls._md_runs(cells[c].paragraphs[0], r[c] if c < len(r) else '')
         return table
 
