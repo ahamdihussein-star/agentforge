@@ -715,13 +715,16 @@ RULES:
         table = doc.add_table(rows=1 + len(items) + 3, cols=4)
         table.style = 'Table Grid'
 
+        from docx.shared import RGBColor as _RGB
         headers = ["Description", "Quantity", "Unit Price", "Amount"]
         for i, h in enumerate(headers):
             cell = table.rows[0].cells[i]
             cell.text = h
+            cls._shade_cell(cell, cls._TABLE_HEADER_FILL)
             for p in cell.paragraphs:
                 for r in p.runs:
                     r.bold = True
+                    r.font.color.rgb = _RGB(0xFF, 0xFF, 0xFF)
 
         for idx, item in enumerate(items):
             row = table.rows[idx + 1].cells
