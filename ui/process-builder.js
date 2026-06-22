@@ -7754,9 +7754,10 @@
                 const body = state.agentId ? {
                     name,
                     goal,
-                    process_definition: def,
-                    
-                    status: 'draft'
+                    process_definition: def
+                    // NOTE: do NOT send status here — preserve the agent's current
+                    // status (published/draft). Forcing 'draft' silently unpublished
+                    // processes on every save.
                 } : {
                     name,
                     goal,
@@ -8745,8 +8746,8 @@
             const body = state.agentId ? {
                 name,
                 goal,
-                process_definition: def,
-                status: 'draft'
+                process_definition: def
+                // NOTE: omit status — preserve current published/draft state.
             } : {
                 name,
                 goal,

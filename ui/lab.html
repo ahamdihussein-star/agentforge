@@ -240,9 +240,29 @@
         }
         
         .format-badge.selected {
-            border-color: white;
-            box-shadow: 0 0 10px rgba(255,255,255,0.3);
+            border-color: currentColor;
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.18);
         }
+        /* Chip text was tuned for a dark theme (text-*-400) and renders light/white on
+           the light Lab background (some Tailwind classes don't apply and fall back to
+           inherited white). Force darker, same-hue text for readable contrast. */
+        .format-badge.text-blue-400 { color: #1d4ed8 !important; }
+        .format-badge.text-red-400 { color: #b91c1c !important; }
+        .format-badge.text-green-400 { color: #15803d !important; }
+        .format-badge.text-orange-400 { color: #c2410c !important; }
+        .format-badge.text-purple-400 { color: #7e22ce !important; }
+        .format-badge.text-cyan-400 { color: #0e7490 !important; }
+        .format-badge.text-pink-400 { color: #be185d !important; }
+        .format-badge.text-gray-400 { color: #374151 !important; }
+        /* Ensure each chip keeps a readable tinted background on the light theme. */
+        .format-badge.bg-blue-500\/20 { background-color: #dbeafe !important; }
+        .format-badge.bg-red-500\/20 { background-color: #fee2e2 !important; }
+        .format-badge.bg-green-500\/20 { background-color: #dcfce7 !important; }
+        .format-badge.bg-orange-500\/20 { background-color: #ffedd5 !important; }
+        .format-badge.bg-purple-500\/20 { background-color: #f3e8ff !important; }
+        .format-badge.bg-cyan-500\/20 { background-color: #cffafe !important; }
+        .format-badge.bg-pink-500\/20 { background-color: #fce7f3 !important; }
+        .format-badge.bg-gray-500\/20 { background-color: #f3f4f6 !important; }
         
         /* Toast */
         .toast {
@@ -1378,13 +1398,26 @@ Create an invoice image with:
             previewSection.classList.remove('hidden');
             previewArea.classList.add('has-content');
             
-            if (result.image_url || result.base64) {
-                const imgSrc = result.image_url || `data:image/${result.format || 'png'};base64,${result.base64}`;
+            if (result.base64) {
+                const imgSrc = `data:image/${result.format || 'png'};base64,${result.base64}`;
                 previewArea.innerHTML = `
                     <div class="w-full p-4">
                         <img src="${imgSrc}" alt="${result.name}" class="max-w-full max-h-96 mx-auto rounded-lg shadow-lg border border-gray-700">
                     </div>
                 `;
+            } else if (result.image_url) {
+                // image_url points at a Bearer-protected endpoint; <img src> can't send
+                // the token (401 -> broken image). Fetch with auth and use a blob URL.
+                previewArea.innerHTML = `
+                    <div class="w-full p-4">
+                        <img id="lab-preview-img" alt="${result.name}" class="max-w-full max-h-96 mx-auto rounded-lg shadow-lg border border-gray-700">
+                        <p id="lab-preview-img-err" class="text-sm text-gray-400 text-center mt-2 hidden">Could not load image preview.</p>
+                    </div>
+                `;
+                fetch(result.image_url, { headers: getAuthHeaders() })
+                    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+                    .then(b => { const im = document.getElementById('lab-preview-img'); if (im) im.src = URL.createObjectURL(b); })
+                    .catch(() => { const e = document.getElementById('lab-preview-img-err'); if (e) e.classList.remove('hidden'); });
             } else {
                 previewArea.innerHTML = `
                     <div class="w-full p-6 text-center">
@@ -1597,7 +1630,20 @@ Create an invoice image with:
             
             try {
                 if (generatedResult.download_url) {
-                    window.open(generatedResult.download_url, '_blank');
+                    // The download endpoint is Bearer-protected; a plain window.open()
+                    // sends no Authorization header and returns 401. Fetch with auth
+                    // headers, then download the blob client-side.
+                    const resp = await fetch(generatedResult.download_url, { headers: getAuthHeaders() });
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    const blob = await resp.blob();
+                    const objUrl = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = objUrl;
+                    link.download = `${generatedResult.name || 'download'}.${generatedResult.format || 'bin'}`;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    URL.revokeObjectURL(objUrl);
                 } else if (generatedResult.base64) {
                     const link = document.createElement('a');
                     link.href = `data:application/octet-stream;base64,${generatedResult.base64}`;
