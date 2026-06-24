@@ -1129,9 +1129,25 @@ class ProviderFactory:
         if kb_config.get('use_global', True):
             return ProviderFactory.get_embedding_provider(global_config)
         
-        # Create custom config from KB settings
+        # Create custom config from KB settings.
+        # Be defensive: legacy/UI values like 'local' must map to a valid enum, and any
+        # unknown provider should fall back to the global config instead of crashing.
+        raw_provider = str(kb_config.get('provider', 'openai') or 'openai').strip().lower()
+        provider_aliases = {
+            'local': 'sentence_transformers',
+            'sentencetransformers': 'sentence_transformers',
+            'st': 'sentence_transformers',
+            'huggingface': 'sentence_transformers',
+            'hf': 'sentence_transformers',
+        }
+        raw_provider = provider_aliases.get(raw_provider, raw_provider)
+        try:
+            provider_enum = EmbeddingProvider(raw_provider)
+        except Exception:
+            print(f"⚠️ Unknown KB embedding provider '{raw_provider}', falling back to global embedding config")
+            return ProviderFactory.get_embedding_provider(global_config)
         emb_config = EmbeddingConfig(
-            provider=EmbeddingProvider(kb_config.get('provider', 'openai')),
+            provider=provider_enum,
             model=kb_config.get('model', 'text-embedding-3-small'),
             local_model=kb_config.get('local_model', 'all-MiniLM-L6-v2'),
             api_key=kb_config.get('api_key', '')
@@ -2328,6 +2344,56 @@ def get_agent_tools(agent: 'AgentData') -> List['ToolConfiguration']:
         if tool:
             tools.append(tool)
     return tools
+
+
+async def _embed_chunks_for_tool(texts: List[str], kb_config: Dict) -> Optional[List[List[float]]]:
+    """Embed chunk texts using the KB's resolved embedding provider.
+    Returns a list of vectors, or None if embeddings can't be produced (→ keyword fallback)."""
+    if not texts:
+        return None
+    try:
+        provider = ProviderFactory.get_kb_embedding_provider(
+            (kb_config or {}).get('embedding', {}) or {},
+            app_state.settings.embedding
+        )
+        out: List[List[float]] = []
+        batch = 64
+        for i in range(0, len(texts), batch):
+            out.extend(await provider.embed(texts[i:i + batch]))
+        return out
+    except Exception as e:
+        print(f"⚠️ Chunk embedding skipped (semantic search will fall back to keyword): {e}")
+        return None
+
+
+def _cosine(a: List[float], b: List[float]) -> float:
+    import math
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = 0.0; na = 0.0; nb = 0.0
+    for x, y in zip(a, b):
+        dot += x * y; na += x * x; nb += y * y
+    if na <= 0 or nb <= 0:
+        return 0.0
+    return dot / (math.sqrt(na) * math.sqrt(nb))
+
+
+def _semantic_search_stored(query_embedding: List[float], tool_id: str, top_k: int, threshold: float = 0.0) -> List[Dict]:
+    """Cosine-similarity search over chunk embeddings stored in app_state.document_chunks.
+    Lets semantic/hybrid search work without an external vector DB."""
+    if not query_embedding:
+        return []
+    candidates = [c for c in app_state.document_chunks
+                  if c.get('tool_id') == tool_id and c.get('embedding')]
+    if not candidates:
+        return []
+    scored = []
+    for c in candidates:
+        s = _cosine(query_embedding, c.get('embedding'))
+        if s >= threshold:
+            scored.append({**{k: v for k, v in c.items() if k != 'embedding'}, "score": s})
+    scored.sort(key=lambda x: x['score'], reverse=True)
+    return scored[:top_k]
 
 
 async def search_knowledge_base(query: str, kb_tool: ToolConfiguration, top_k: int = None) -> List[Dict]:
