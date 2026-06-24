@@ -2409,47 +2409,35 @@ async def search_knowledge_base(query: str, kb_tool: ToolConfiguration, top_k: i
         if search_type == 'keyword':
             return search_documents_keyword(query, [kb_tool.id], top_k)
         
-        # Get KB-specific or global embedding provider
+        # Get KB-specific or global embedding provider and embed the query.
         emb_config = kb_config.get('embedding', {})
-        embedding_provider = ProviderFactory.get_kb_embedding_provider(
-            emb_config, 
-            app_state.settings.embedding
-        )
-        
-        # Get query embedding
-        query_embedding = (await embedding_provider.embed([query]))[0]
-        
-        # Get KB-specific vector DB with its collection
-        vdb_config = kb_config.get('vector_db', {})
-        embedding_dim = embedding_provider.get_dimensions()
-        vector_db = ProviderFactory.get_kb_vector_db(
-            vdb_config,
-            app_state.settings.vector_db,
-            collection_id,
-            embedding_dim
-        )
-        
-        # Search
-        results = await vector_db.search(
-            query_embedding=query_embedding,
-            top_k=top_k * 2 if search_type == 'hybrid' else top_k,  # Get more for hybrid
-            filter={"tool_id": kb_tool.id},
-            query_text=query
-        )
-        
-        # Filter by similarity threshold
-        results = [r for r in results if r.get('score', 0) >= similarity_threshold]
-        
-        # If hybrid, combine with keyword search
+        try:
+            embedding_provider = ProviderFactory.get_kb_embedding_provider(
+                emb_config,
+                app_state.settings.embedding
+            )
+            query_embedding = (await embedding_provider.embed([query]))[0]
+        except Exception as e:
+            print(f"⚠️ Query embedding failed ({e}); using keyword search")
+            return search_documents_keyword(query, [kb_tool.id], top_k)
+
+        # Semantic search via cosine over the chunk embeddings stored at ingestion.
+        # This makes 'semantic' and 'hybrid' actually work without an external vector DB.
+        sem_k = top_k * 2 if search_type == 'hybrid' else top_k
+        results = _semantic_search_stored(query_embedding, kb_tool.id, sem_k, threshold=0.0)
+
         if search_type == 'hybrid':
+            # Merge semantic + keyword results, dedupe by text prefix.
             keyword_results = search_documents_keyword(query, [kb_tool.id], top_k)
-            # Merge and dedupe
             seen_texts = set(r.get('text', '')[:100] for r in results)
             for kr in keyword_results:
                 if kr.get('text', '')[:100] not in seen_texts:
                     results.append(kr)
-            results = results[:top_k]
-        
+            return results[:top_k]
+
+        # Pure semantic: if no embeddings are stored yet, fall back to keyword.
+        if not results:
+            return search_documents_keyword(query, [kb_tool.id], top_k)
         return results[:top_k]
         
     except Exception as e:
@@ -10310,10 +10298,29 @@ async def process_document(doc_id: str, file_path: str):
             doc.error_message = text
             app_state.save_to_disk()
             return
-        chunks = DocumentProcessor.chunk_text(text)
+        # Honor the KB tool's chunk settings (accept both 'chunk_overlap' [create] and 'overlap' [edit]).
+        kb_tool = app_state.tools.get(getattr(doc, 'tool_id', None)) if getattr(doc, 'tool_id', None) else None
+        kb_cfg = (kb_tool.config if (kb_tool and getattr(kb_tool, 'config', None)) else {}) or {}
+        try:
+            chunk_size = int(kb_cfg.get('chunk_size', 1000) or 1000)
+        except Exception:
+            chunk_size = 1000
+        try:
+            overlap = int(kb_cfg.get('chunk_overlap', kb_cfg.get('overlap', 200)) or 200)
+        except Exception:
+            overlap = 200
+        chunks = DocumentProcessor.chunk_text(text, chunk_size=chunk_size, overlap=overlap)
         doc.chunks = chunks
-        for chunk in chunks:
-            app_state.document_chunks.append({"tool_id": doc.tool_id, "doc_id": doc.id, "chunk_id": chunk['id'], "text": chunk['text'], "source": doc.original_name, "type": "document"})
+
+        # Pre-compute embeddings so semantic / hybrid search actually works.
+        chunk_embeddings = await _embed_chunks_for_tool([c['text'] for c in chunks], kb_cfg)
+
+        for idx, chunk in enumerate(chunks):
+            app_state.document_chunks.append({
+                "tool_id": doc.tool_id, "doc_id": doc.id, "chunk_id": chunk['id'],
+                "text": chunk['text'], "source": doc.original_name, "type": "document",
+                "embedding": (chunk_embeddings[idx] if (chunk_embeddings and idx < len(chunk_embeddings)) else None)
+            })
         doc.status = "ready"
         app_state.save_to_disk()
     except Exception as e:
@@ -11760,23 +11767,26 @@ async def update_tool(tool_id: str, request: UpdateToolRequest, current_user: Us
                     reprocess_result = {"pages_scraped": saved_count}
                     
             elif tool.type in ['document', 'knowledge']:
-                # Re-index if chunk settings changed
+                # Re-index if chunk settings changed (accept both 'chunk_overlap' [create] and 'overlap' [edit])
                 old_chunk = old_config.get('chunk_size', 1000)
-                old_overlap = old_config.get('overlap', 200)
-                new_chunk = new_config.get('chunk_size')
-                new_overlap = new_config.get('overlap')
-                if (new_chunk is not None and old_chunk != new_chunk) or (new_overlap is not None and old_overlap != new_overlap):
+                old_overlap = old_config.get('chunk_overlap', old_config.get('overlap', 200))
+                new_chunk_raw = new_config.get('chunk_size')
+                new_overlap_raw = new_config.get('chunk_overlap', new_config.get('overlap'))
+                if (new_chunk_raw is not None and old_chunk != new_chunk_raw) or (new_overlap_raw is not None and old_overlap != new_overlap_raw):
                     reprocess_action = 'reindex'
-                    # Re-chunk all documents for this tool
+                    new_chunk = int(new_chunk_raw if new_chunk_raw is not None else (old_chunk or 1000))
+                    new_overlap = int(new_overlap_raw if new_overlap_raw is not None else (old_overlap or 200))
+                    # Re-chunk (and re-embed) all documents for this tool
                     docs_reindexed = 0
                     for doc_id, doc in app_state.documents.items():
                         if doc.tool_id == tool_id and doc.content:
                             # Remove old chunks
                             app_state.document_chunks = [c for c in app_state.document_chunks if c.get('doc_id') != doc_id]
-                            # Create new chunks
+                            # Create new chunks + embeddings
                             chunks = DocumentProcessor.chunk_text(doc.content, chunk_size=new_chunk, overlap=new_overlap)
-                            for chunk in chunks:
-                                app_state.document_chunks.append({"tool_id": tool_id, "doc_id": doc_id, "chunk_id": chunk['id'], "text": chunk['text'], "source": doc.filename, "type": "document"})
+                            chunk_embeddings = await _embed_chunks_for_tool([c['text'] for c in chunks], new_config)
+                            for cidx, chunk in enumerate(chunks):
+                                app_state.document_chunks.append({"tool_id": tool_id, "doc_id": doc_id, "chunk_id": chunk['id'], "text": chunk['text'], "source": doc.filename, "type": "document", "embedding": (chunk_embeddings[cidx] if (chunk_embeddings and cidx < len(chunk_embeddings)) else None)})
                             docs_reindexed += 1
                     reprocess_result = {"documents_reindexed": docs_reindexed}
                     
