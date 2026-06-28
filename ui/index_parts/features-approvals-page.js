@@ -670,9 +670,8 @@ const PERMISSION_CATALOG = [
         { id: 'roles:edit', name: 'Edit Roles' },
         { id: 'roles:delete', name: 'Delete Roles' },
     ]},
-    { category: '🔐 Security & MFA', permissions: [
+    { category: '🔐 Security', permissions: [
         { id: 'security:settings', name: 'Security Settings' },
-        { id: 'mfa:manage', name: 'Manage MFA' },
     ]},
     { category: '🤖 AI Agents', permissions: [
         { id: 'agents:view', name: 'View Agents' },
@@ -681,23 +680,18 @@ const PERMISSION_CATALOG = [
         { id: 'agents:delete', name: 'Delete Agents' },
         { id: 'agents:publish', name: 'Publish Agents' },
     ]},
-    { category: '🤖 Tools & Integrations', permissions: [
+    { category: '🧩 Tools & Integrations', permissions: [
         { id: 'tools:view', name: 'View Tools' },
         { id: 'tools:create', name: 'Create Tools' },
         { id: 'tools:edit', name: 'Edit Tools' },
         { id: 'tools:delete', name: 'Delete Tools' },
-        { id: 'tools:execute', name: 'Execute Tools' },
     ]},
-    { category: '🤖 Chat', permissions: [
+    { category: '💬 Chat', permissions: [
         { id: 'chat:use', name: 'Use Chat' },
-        { id: 'chat:view_all', name: 'View All Chats' },
-        { id: 'chat:delete', name: 'Delete Chats' },
     ]},
-    { category: '📊 Analytics & Audit', permissions: [
+    { category: '📊 Audit', permissions: [
         { id: 'audit:view', name: 'View Audit Logs' },
         { id: 'audit:export', name: 'Export Audit Logs' },
-        { id: 'analytics:view', name: 'View Analytics' },
-        { id: 'reports:generate', name: 'Generate Reports' },
     ]},
     { category: '⚙️ System', permissions: [
         { id: 'system:admin', name: 'Full System Admin' },
