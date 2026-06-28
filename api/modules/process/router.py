@@ -1093,6 +1093,16 @@ async def start_execution(
     
     Starts running the selected workflow with the provided input.
     """
+    # RBAC: running a workflow from the builder requires process:execute (super_admin bypasses).
+    # NOTE: end users run processes via /execute-fast and approve via /approvals/{id}/decide,
+    # which are intentionally NOT gated here so the requester/approver flow keeps working.
+    try:
+        if security_state and not security_state.check_permission(user, Permission.PROCESS_EXECUTE.value):
+            raise HTTPException(status_code=403, detail="You don't have permission to run processes.")
+    except HTTPException:
+        raise
+    except Exception:
+        pass
     user_dict = _user_to_dict(user)
     try:
         result = await service.start_execution(
