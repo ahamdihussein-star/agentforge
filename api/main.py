@@ -64,6 +64,25 @@ except ImportError:
     def require_super_admin():
         return None
 
+
+def _require_perm(current_user, permission: str):
+    """Enforce an RBAC permission on write actions.
+
+    - super_admin bypasses automatically (handled inside check_permission).
+    - Skips silently when there is no authenticated user (preserves optional-auth /
+      public flows) or when the security module is unavailable (fail-open) so this
+      can never hard-break the app.
+    """
+    try:
+        if not SECURITY_AVAILABLE or not security_state or current_user is None:
+            return
+        if not security_state.check_permission(current_user, permission):
+            raise HTTPException(status_code=403, detail=f"You don't have permission to perform this action ({permission}).")
+    except HTTPException:
+        raise
+    except Exception:
+        return
+
 # Health Check Module
 try:
     from api.health import router as health_router
@@ -6115,6 +6134,7 @@ async def get_logo():
 
 @app.post("/api/agents")
 async def create_agent(request: CreateAgentRequest, current_user: User = Depends(get_current_user)):
+    _require_perm(current_user, "agents:create")
     tasks = []
     for t in request.tasks:
         instructions = []
@@ -8020,6 +8040,7 @@ async def refine_unified_demo(request: Dict[str, Any]):
 
 @app.put("/api/agents/{agent_id}")
 async def update_agent(agent_id: str, request: UpdateAgentRequest, current_user: User = Depends(get_current_user)):
+    _require_perm(current_user, "agents:edit")
     if not current_user:
         raise HTTPException(401, "Authentication required")
     
@@ -8225,6 +8246,7 @@ async def update_agent(agent_id: str, request: UpdateAgentRequest, current_user:
 
 @app.delete("/api/agents/{agent_id}")
 async def delete_agent(agent_id: str, current_user: User = Depends(get_current_user)):
+    _require_perm(current_user, "agents:delete")
     """
     Delete an agent. Only the owner can delete.
     NOTE: Admins are treated as normal users - they cannot delete unless they own the agent.
@@ -9493,6 +9515,7 @@ async def list_tools(current_user: User = Depends(get_current_user_optional)):
 
 @app.post("/api/tools")
 async def create_tool(request: CreateToolRequest, current_user: User = Depends(get_current_user_optional)):
+    _require_perm(current_user, "tools:create")
     # Check for duplicate name
     existing_names = [t.name.lower() for t in app_state.tools.values()]
     if request.name.lower() in existing_names:
@@ -9879,6 +9902,7 @@ async def debug_tool_ownership(tool_id: str, current_user: User = Depends(get_cu
 
 @app.delete("/api/tools/{tool_id}")
 async def delete_tool(tool_id: str, current_user: User = Depends(get_current_user_optional)):
+    _require_perm(current_user, "tools:delete")
     if tool_id not in app_state.tools:
         raise HTTPException(404, "Tool not found")
     
@@ -11682,6 +11706,7 @@ class UpdateToolRequest(BaseModel):
 
 @app.put("/api/tools/{tool_id}")
 async def update_tool(tool_id: str, request: UpdateToolRequest, current_user: User = Depends(get_current_user_optional)):
+    _require_perm(current_user, "tools:edit")
     """Update tool configuration with automatic re-processing"""
     if tool_id not in app_state.tools:
         raise HTTPException(404, "Tool not found")
