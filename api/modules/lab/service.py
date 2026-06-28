@@ -61,7 +61,23 @@ class LabService:
     
     # Storage path for generated files
     STORAGE_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'lab')
-    
+
+    # Model used for quality-critical content (documents, financial docs, images).
+    # Overridable via env; defaults to a strong instruction-following model so the
+    # output follows the requested context (country, currency, tax, tone).
+    DOC_MODEL = os.getenv('LAB_DOC_MODEL', 'gpt-4o')
+
+    @staticmethod
+    def _money(data, val):
+        """Format a monetary value using the document's currency (symbol or ISO code)."""
+        cur = (str(data.get('currency') or '$')).strip()
+        try:
+            v = float(val or 0)
+        except Exception:
+            v = 0.0
+        # No space after a 1-char symbol ($, £, €); a space after a code (AED, USD).
+        return f"{cur}{v:,.2f}" if len(cur) == 1 else f"{cur} {v:,.2f}"
+
     @classmethod
     def _ensure_storage(cls):
         """Ensure storage directory exists"""
@@ -489,7 +505,7 @@ Return only valid JSON, no markdown or explanation."""
         if client:
             try:
                 response = client.chat.completions.create(
-                    model="gpt-4o-mini",
+                    model=cls.DOC_MODEL,
                     messages=[
                         {"role": "system", "content": (
                             "You are a professional document writer. Produce a COMPLETE, FINISHED, real-looking "
@@ -535,62 +551,62 @@ For further details or inquiries, please contact the responsible department.
         """Generate structured JSON data for financial documents (invoices, receipts, etc.)."""
         client = cls._get_ai_client()
 
-        prompt = f"""Generate realistic financial document data for this request:
+        prompt = f"""Generate realistic financial-document data for this request.
 
 Name: {name}
 Description: {description}
 
-Return a JSON object with this structure:
+CRITICAL — match the real-world CONTEXT of the description:
+- Infer the COUNTRY/region, the COMPANY, and the CUSTOMER from the description. If a company, city, or country is named, USE IT exactly. Otherwise pick ones that fit the described region.
+- Infer the CURRENCY from the context (UAE -> "AED", USA -> "$", UK -> "GBP", EU -> "EUR", India -> "INR", Saudi -> "SAR"). Return it in "currency".
+- Infer the correct TAX for that region (UAE/GCC -> "VAT" at 5%, EU/UK -> "VAT", USA -> "Sales Tax", India -> "GST"). Return its name in "tax_label" and rate in "tax_rate".
+- Addresses, phone numbers, and email domains must match the inferred country.
+
+Return ONLY a JSON object with EXACTLY these keys:
 {{
-    "company": "Realistic company name",
-    "company_address": "Full street address\\nCity, State ZIP",
-    "company_phone": "+1 (XXX) XXX-XXXX",
-    "company_email": "billing@company.com",
-    "document_number": "INV-2025-XXXXX",
-    "document_date": "February 25, 2025",
-    "due_date": "March 27, 2025",
-    "customer_name": "Realistic customer name",
-    "customer_address": "Full street address\\nCity, State ZIP",
-    "customer_email": "contact@customer.com",
-    "items": [
-        {{"description": "Specific detailed item/service description", "qty": 1, "price": 1500.00}},
-        {{"description": "Another specific item", "qty": 5, "price": 200.00}}
-    ],
-    "subtotal": 2500.00,
-    "tax_rate": "8%",
-    "tax": 200.00,
-    "total": 2700.00,
-    "payment_terms": "Net 30",
-    "notes": "Thank you for your business!"
+  "company": "...", "company_address": "Street\\nCity, Country",
+  "company_phone": "...", "company_email": "...",
+  "currency": "AED",
+  "document_number": "...", "document_date": "Month DD, YYYY", "due_date": "Month DD, YYYY",
+  "customer_name": "...", "customer_address": "Street\\nCity, Country", "customer_email": "...",
+  "items": [{{"description": "Detailed specific item", "qty": 1, "price": 1500.00}}],
+  "subtotal": 0.00, "tax_label": "VAT", "tax_rate": "5%", "tax": 0.00, "total": 0.00,
+  "payment_terms": "...", "notes": "..."
 }}
 
 RULES:
-- Generate 3-6 line items that are SPECIFIC to the context described
-- Use realistic pricing (not round numbers -- use $97.50, $1,247.00, etc.)
-- Calculate subtotal, tax, and total CORRECTLY
-- Item descriptions must be detailed: "Strategic Planning Workshop (8 hours)" not just "Consulting"
-- NEVER use placeholders. Every field must have a realistic value.
-- Return ONLY valid JSON, no markdown or explanation."""
+- 3-6 line items, SPECIFIC to the described business (not generic "Consulting").
+- Realistic pricing; compute subtotal, tax (= subtotal * rate), and total CORRECTLY.
+- Use a current, sensible document_date and a later due_date.
+- NEVER use placeholders like [Company]. Every value must be concrete and consistent with the context."""
 
         if client:
-            try:
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": "You generate realistic financial document data in JSON format. Never use placeholders. Output valid JSON only."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.7,
-                    max_tokens=2000
-                )
-                content = response.choices[0].message.content.strip()
-                if '```' in content:
-                    content = content.split('```')[1]
-                    if content.startswith('json'):
-                        content = content[4:]
-                return json.loads(content)
-            except Exception as e:
-                print(f"Financial document AI generation failed: {e}")
+            # Prefer JSON mode for guaranteed-parseable output; retry without it if unsupported.
+            for use_json in (True, False):
+                try:
+                    kwargs = dict(
+                        model=cls.DOC_MODEL,
+                        messages=[
+                            {"role": "system", "content": "You generate realistic, context-accurate financial document data as strict JSON. Adapt company, country, currency, and tax to the request. Never use placeholders."},
+                            {"role": "user", "content": prompt},
+                        ],
+                        temperature=0.6,
+                        max_tokens=2000,
+                    )
+                    if use_json:
+                        kwargs["response_format"] = {"type": "json_object"}
+                    response = client.chat.completions.create(**kwargs)
+                    content = (response.choices[0].message.content or "").strip()
+                    if content.startswith("```"):
+                        content = content.strip("`")
+                        if content[:4].lower() == "json":
+                            content = content[4:]
+                    start, end = content.find("{"), content.rfind("}")
+                    if start != -1 and end != -1:
+                        content = content[start:end + 1]
+                    return json.loads(content)
+                except Exception as e:
+                    print(f"Financial document AI generation failed (json={use_json}): {e}")
 
         return cls._get_fallback_financial_data(name, description)
 
@@ -730,22 +746,22 @@ RULES:
             row = table.rows[idx + 1].cells
             row[0].text = item.get("description", "")
             row[1].text = str(item.get("qty", 0))
-            row[2].text = f"${item.get('price', 0):,.2f}"
-            row[3].text = f"${item.get('qty', 0) * item.get('price', 0):,.2f}"
+            row[2].text = cls._money(data, item.get('price', 0))
+            row[3].text = cls._money(data, item.get('qty', 0) * item.get('price', 0))
 
         # Totals
         st_row = len(items) + 1
         table.rows[st_row].cells[2].text = "Subtotal:"
-        table.rows[st_row].cells[3].text = f"${data.get('subtotal', 0):,.2f}"
-        table.rows[st_row + 1].cells[2].text = f"Tax ({data.get('tax_rate', '8%')}):"
-        table.rows[st_row + 1].cells[3].text = f"${data.get('tax', 0):,.2f}"
+        table.rows[st_row].cells[3].text = cls._money(data, data.get('subtotal', 0))
+        table.rows[st_row + 1].cells[2].text = f"{data.get('tax_label') or 'Tax'} ({data.get('tax_rate', '8%')}):"
+        table.rows[st_row + 1].cells[3].text = cls._money(data, data.get('tax', 0))
         total_cell = table.rows[st_row + 2].cells[2]
         total_cell.text = "TOTAL:"
         for p in total_cell.paragraphs:
             for r in p.runs:
                 r.bold = True
         total_val = table.rows[st_row + 2].cells[3]
-        total_val.text = f"${data.get('total', 0):,.2f}"
+        total_val.text = cls._money(data, data.get('total', 0))
         for p in total_val.paragraphs:
             for r in p.runs:
                 r.bold = True
@@ -804,12 +820,12 @@ RULES:
             table_data.append([
                 item.get("description", ""),
                 str(item.get("qty", 0)),
-                f"${item.get('price', 0):,.2f}",
-                f"${item.get('qty', 0) * item.get('price', 0):,.2f}",
+                cls._money(data, item.get('price', 0)),
+                cls._money(data, item.get('qty', 0) * item.get('price', 0)),
             ])
-        table_data.append(["", "", "Subtotal:", f"${data.get('subtotal', 0):,.2f}"])
-        table_data.append(["", "", f"Tax ({data.get('tax_rate', '8%')}):", f"${data.get('tax', 0):,.2f}"])
-        table_data.append(["", "", "TOTAL:", f"${data.get('total', 0):,.2f}"])
+        table_data.append(["", "", "Subtotal:", cls._money(data, data.get('subtotal', 0))])
+        table_data.append(["", "", f"{data.get('tax_label') or 'Tax'} ({data.get('tax_rate', '8%')}):", cls._money(data, data.get('tax', 0))])
+        table_data.append(["", "", "TOTAL:", cls._money(data, data.get('total', 0))])
 
         t = Table(table_data, colWidths=[250, 50, 80, 80])
         t.setStyle(TableStyle([
@@ -888,16 +904,16 @@ RULES:
             r = 15 + idx
             ws.cell(row=r, column=1, value=item.get("description", "")).border = thin_border
             ws.cell(row=r, column=2, value=item.get("qty", 0)).border = thin_border
-            ws.cell(row=r, column=3, value=f"${item.get('price', 0):,.2f}").border = thin_border
-            ws.cell(row=r, column=4, value=f"${item.get('qty', 0) * item.get('price', 0):,.2f}").border = thin_border
+            ws.cell(row=r, column=3, value=cls._money(data, item.get('price', 0))).border = thin_border
+            ws.cell(row=r, column=4, value=cls._money(data, item.get('qty', 0) * item.get('price', 0))).border = thin_border
 
         tr = 15 + len(items) + 1
         ws.cell(row=tr, column=3, value="Subtotal:").font = bold_font
-        ws.cell(row=tr, column=4, value=f"${data.get('subtotal', 0):,.2f}")
-        ws.cell(row=tr + 1, column=3, value=f"Tax ({data.get('tax_rate', '8%')}):").font = bold_font
-        ws.cell(row=tr + 1, column=4, value=f"${data.get('tax', 0):,.2f}")
+        ws.cell(row=tr, column=4, value=cls._money(data, data.get('subtotal', 0)))
+        ws.cell(row=tr + 1, column=3, value=f"{data.get('tax_label') or 'Tax'} ({data.get('tax_rate', '8%')}):").font = bold_font
+        ws.cell(row=tr + 1, column=4, value=cls._money(data, data.get('tax', 0)))
         ws.cell(row=tr + 2, column=3, value="TOTAL:").font = Font(bold=True, size=12)
-        ws.cell(row=tr + 2, column=4, value=f"${data.get('total', 0):,.2f}").font = Font(bold=True, size=12)
+        ws.cell(row=tr + 2, column=4, value=cls._money(data, data.get('total', 0))).font = Font(bold=True, size=12)
 
         ws.column_dimensions['A'].width = 45
         ws.column_dimensions['B'].width = 10
@@ -915,6 +931,7 @@ RULES:
     @staticmethod
     def _md_runs(paragraph, text):
         """Add text to a docx paragraph, rendering **bold**, *italic*, `code`."""
+        text = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', text or '')  # [label](url) -> label
         for tok in re.split(r'(\*\*.+?\*\*|\*.+?\*|`.+?`)', text or ''):
             if not tok:
                 continue
@@ -929,7 +946,8 @@ RULES:
 
     @staticmethod
     def _md_strip(text):
-        t = re.sub(r'\*\*(.+?)\*\*', r'\1', text or '')
+        t = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', text or '')  # [label](url) -> label
+        t = re.sub(r'\*\*(.+?)\*\*', r'\1', t)
         t = re.sub(r'`(.+?)`', r'\1', t)
         return t.replace('*', '').strip()
 
@@ -1136,6 +1154,9 @@ RULES:
             if line.startswith('|'):
                 # Table row
                 cells = [c.strip() for c in line.split('|')[1:-1]]
+                # Skip markdown table separator rows (|---|---|) so they don't become a row of dashes.
+                if cells and all(re.fullmatch(r':?-{2,}:?', c or '') for c in cells):
+                    continue
                 for col, cell in enumerate(cells, 1):
                     ws.cell(row=row, column=col, value=cell)
                 row += 1
@@ -1153,6 +1174,7 @@ RULES:
     
     @staticmethod
     def _pptx_runs(paragraph, text):
+        text = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', text or '')  # [label](url) -> label
         for tok in re.split(r'(\*\*.+?\*\*|\*.+?\*|`.+?`)', text or ''):
             if not tok:
                 continue
@@ -1225,6 +1247,10 @@ RULES:
             if not line:
                 i += 1
                 continue
+            # Skip markdown horizontal rules (---, ***, ___) so they don't become bullets/slides.
+            if re.fullmatch(r'[-*_]{3,}', line):
+                i += 1
+                continue
             if line.startswith('|') and i + 1 < len(lines) and cls._is_md_table_sep(lines[i + 1]):
                 flush()
                 header = cls._md_table_cells(line)
@@ -1236,6 +1262,16 @@ RULES:
                 ttl = state['slide'].shapes.title.text if state['slide'] else title
                 cls._pptx_table_slide(prs, ttl, header, body)
                 i = j
+                continue
+            if line.startswith('|'):
+                # Stray table row without a separator: render cells inline, drop pure separators.
+                _cells = cls._md_table_cells(line)
+                if not _cells or all(re.fullmatch(r':?-{2,}:?', c or '') for c in _cells):
+                    i += 1
+                    continue
+                ensure_slide()
+                state['points'].append(' | '.join(_cells))
+                i += 1
                 continue
             if line.startswith('# ') or line.startswith('## '):
                 flush()
@@ -1423,18 +1459,53 @@ RULES:
                 draw.line([(margin, y + 22), (width - margin, y + 22)], fill='#eeeeee')
                 y += 28
             
-            # Total - use provided total or calculated
-            total_text = doc_data.get('total', '')
-            if total_text:
-                y += 15
-                draw.rectangle([width - 280, y, width - margin, y + 40], fill=header_color)
-                draw.text((width - 270, y + 10), f"TOTAL: {total_text}", font=font_medium, fill='white')
-                y += 50
-            elif calculated_total > 0:
-                y += 15
-                draw.rectangle([width - 280, y, width - margin, y + 40], fill=header_color)
-                draw.text((width - 270, y + 10), f"TOTAL: ${calculated_total:,.2f}", font=font_medium, fill='white')
-                y += 50
+            # Totals block (right-aligned): subtotal, tax, grand total — never overflows the page.
+            cur = str(doc_data.get('currency') or '').strip()
+
+            def _amt(v):
+                s = str(v).strip()
+                if not s:
+                    return ''
+                if ':' in s:            # drop any stray label like "Total amount:"
+                    s = s.split(':')[-1].strip()
+                if cur and cur.lower() not in s.lower():
+                    s = f"{cur} {s}"
+                return s
+
+            box_left = width - 330
+            rows = []
+            if str(doc_data.get('subtotal', '')).strip():
+                rows.append(('Subtotal', _amt(doc_data.get('subtotal')), False))
+            if str(doc_data.get('tax', '')).strip():
+                _tl = doc_data.get('tax_label') or 'Tax'
+                _tr = doc_data.get('tax_rate') or ''
+                rows.append((f"{_tl} ({_tr})" if _tr else _tl, _amt(doc_data.get('tax')), False))
+            _tot = doc_data.get('total', '')
+            if not str(_tot).strip() and calculated_total > 0:
+                _tot = f"{calculated_total:,.2f}"
+            if str(_tot).strip():
+                rows.append(('TOTAL', _amt(_tot), True))
+
+            if rows:
+                y += 12
+                for _label, _val, _strong in rows:
+                    if _strong:
+                        draw.rectangle([box_left, y, width - margin, y + 38], fill=header_color)
+                        draw.text((box_left + 12, y + 9), _label, font=font_medium, fill='white')
+                        try:
+                            _tw = draw.textlength(_val, font=font_medium)
+                        except Exception:
+                            _tw = len(_val) * 9
+                        draw.text((width - margin - 12 - _tw, y + 9), _val, font=font_medium, fill='white')
+                        y += 46
+                    else:
+                        draw.text((box_left + 12, y), _label, font=font_small, fill='#333333')
+                        try:
+                            _tw = draw.textlength(_val, font=font_small)
+                        except Exception:
+                            _tw = len(_val) * 7
+                        draw.text((width - margin - 12 - _tw, y), _val, font=font_small, fill='#333333')
+                        y += 22
         
         # Draw additional content/notes
         notes = doc_data.get('notes', [])
@@ -1506,7 +1577,12 @@ Return a JSON object with this EXACT structure:
         ["Row 1 Col 1", "Row 1 Col 2", "Row 1 Col 3", "Row 1 Col 4"],
         ["Row 2 Col 1", "Row 2 Col 2", "Row 2 Col 3", "Row 2 Col 4"]
     ],
-    "total": "Total amount if applicable (e.g., '$1,250.00')",
+    "currency": "Currency symbol or code inferred from the country in the description (e.g. 'AED', '$', '€', 'SAR')",
+    "subtotal": "Subtotal as a PLAIN number string only, e.g. '4,500.00' (no currency word, no label), else ''",
+    "tax_label": "Tax name for the region if applicable ('VAT', 'Sales Tax', 'GST'), else ''",
+    "tax_rate": "Tax rate if applicable, e.g. '5%', else ''",
+    "tax": "Tax amount as a PLAIN number string, e.g. '225.00', else ''",
+    "total": "Grand total as a PLAIN number string ONLY, e.g. '4,725.00' — NO words, NO 'Total:' label, NO currency word",
     "notes": ["Note 1", "Note 2"],
     "footer": "Footer text"
 }}
@@ -1515,36 +1591,39 @@ IMPORTANT:
 - "columns" is a list of column header NAMES (strings)
 - "items" is a list of ROWS, each row is a list of VALUES (not objects)
 - Make all data realistic and contextual to the description
+- Money fields (subtotal, tax, total) MUST be plain numbers as strings (e.g. '4,725.00'); put the currency ONLY in "currency". Never write "Total amount:" inside a value.
+- Infer currency and tax from the country (UAE/GCC -> currency 'AED', tax_label 'VAT', tax_rate '5%'). Compute tax = subtotal * rate and total = subtotal + tax correctly.
 - For airline tickets: include passenger name, flight number, route, date/time, seat, class
 - For invoices: include line items with quantities and prices
 
 Return ONLY the JSON, no explanation or markdown."""
 
         if client:
-            try:
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": "You generate realistic document data in JSON format. Be accurate and detailed."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.7,
-                    max_tokens=1500
-                )
-                
-                content = response.choices[0].message.content.strip()
-                
-                # Extract JSON from response
-                if '```' in content:
-                    content = content.split('```')[1]
-                    if content.startswith('json'):
-                        content = content[4:]
-                
-                data = json.loads(content)
-                return data
-                
-            except Exception as e:
-                print(f"AI structured content generation failed: {e}")
+            for use_json in (True, False):
+                try:
+                    kwargs = dict(
+                        model=cls.DOC_MODEL,
+                        messages=[
+                            {"role": "system", "content": "You generate realistic, context-accurate document data as strict JSON. Adapt currency and tax to the country in the request. Money values are plain numbers; currency goes in its own field."},
+                            {"role": "user", "content": prompt},
+                        ],
+                        temperature=0.6,
+                        max_tokens=1500,
+                    )
+                    if use_json:
+                        kwargs["response_format"] = {"type": "json_object"}
+                    response = client.chat.completions.create(**kwargs)
+                    content = (response.choices[0].message.content or "").strip()
+                    if content.startswith("```"):
+                        content = content.strip("`")
+                        if content[:4].lower() == "json":
+                            content = content[4:]
+                    s, e2 = content.find("{"), content.rfind("}")
+                    if s != -1 and e2 != -1:
+                        content = content[s:e2 + 1]
+                    return json.loads(content)
+                except Exception as e:
+                    print(f"AI structured content generation failed (json={use_json}): {e}")
         
         # Fallback - basic structure based on document type
         return cls._get_fallback_structure(description, document_type)
