@@ -37,7 +37,6 @@ const MENU_PERMISSIONS = {
     "agents": "agents:view",
     "tools": "tools:view",
     "create": "agents:create",
-    "demo": "demo:access",
     "settings": "system:settings",
     "security": "users:view",
 };

@@ -68,6 +68,7 @@ PUBLIC_API_PREFIXES = (
     "/api/health",         # health checks (probes / uptime)
     "/api/public/",        # reserved for per-agent API-key channels (Phase 3)
     "/api/tool-outputs/",  # generated documents — served as unguessable capability URLs (32-char token in filename)
+    "/api/lab/",           # public Lab portal: data/document/image generation + capability URLs (no login)
 )
 
 

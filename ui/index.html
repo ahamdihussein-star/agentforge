@@ -311,30 +311,20 @@
                 <button onclick="navigate('dashboard')" id="nav-dashboard" class="sidebar-item active w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
                     <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>Dashboard</span>
                 </button>
-                <button onclick="navigate('chat')" id="nav-chat" data-permission="chat:use" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
-                    <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Chat</span>
-                </button>
                 <button onclick="navigate('agents')" id="nav-agents" data-permission="agents:view" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
                     <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg><span>Agent Hub</span>
-                </button>
-                <button onclick="navigate('processes')" id="nav-processes" data-permission="agents:view" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
-                    <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></svg><span>Process Agents</span>
                 </button>
                 <button onclick="navigate('tools')" id="nav-tools" data-permission="tools:view" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
                     <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg><span>Tools</span>
                 </button>
-                <button onclick="navigate('create')" id="nav-create" data-permission="agents:create" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
-                    <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/></svg><span>Create</span>
+                <button onclick="navigate('chat')" id="nav-chat" data-permission="chat:use" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
+                    <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Conversational Agents</span>
                 </button>
-                <button onclick="window.location.href='/lab'" id="nav-demo" data-permission="demo:access" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
-                    <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg><span>Lab</span>
-                    <span class="ml-auto text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">New</span>
+                <button onclick="navigate('processes')" id="nav-processes" data-permission="agents:view" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
+                    <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/></svg><span>Process Agents</span>
                 </button>
                 <button onclick="navigate('settings')" id="nav-settings" data-permission="system:settings" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
                     <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>Settings</span>
-                </button>
-                <button onclick="navigate('security')" id="nav-security" data-permission="users:view,roles:view,system:admin" class="sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition">
-                    <svg class="nav-icon w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>Security</span>
                 </button>
             </nav>
             
@@ -426,18 +416,13 @@
                         </div>
                         <div class="dash-card" onclick="navigate('chat')" data-permission="chat:use">
                             <div class="dash-card-icon" style="background:color-mix(in srgb, var(--success) 15%, transparent); animation-delay:1s;"><svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-                            <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Chat</div>
+                            <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Conversational Agents</div>
                             <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Test and interact with your agents in real-time conversations.</div>
                         </div>
                         <div class="dash-card" onclick="navigate('tools')" data-permission="tools:view">
                             <div class="dash-card-icon" style="background:color-mix(in srgb, var(--warning) 15%, transparent); animation-delay:1.5s;"><svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
                             <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Tools</div>
                             <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Create APIs, webhooks, and knowledge bases to empower your agents.</div>
-                        </div>
-                        <div class="dash-card" onclick="window.location.href='/lab'" data-permission="demo:access">
-                            <div class="dash-card-icon" style="background:color-mix(in srgb, var(--danger) 15%, transparent); animation-delay:2s;"><svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg></div>
-                            <div style="font-size:1rem; font-weight:700; color:var(--text-primary); margin-bottom:6px;">Lab</div>
-                            <div style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">Generate realistic test data &mdash; mock APIs, documents, and images &mdash; to test your agents.</div>
                         </div>
                         <div class="dash-card" onclick="navigate('security')" data-permission="users:view,roles:view,system:admin">
                             <div class="dash-card-icon" style="background:color-mix(in srgb, var(--accent-primary) 10%, transparent); animation-delay:2.5s;"><svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
@@ -540,6 +525,19 @@
                 <h2 class="text-xl md:text-2xl font-bold mb-6 flex items-center gap-2"><svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</h2>
                 
                 <div class="max-w-4xl space-y-6">
+                    <!-- Security & Access (entry point; full center lives under Security) -->
+                    <div class="card rounded-xl p-4 md:p-6" data-permission="users:view,roles:view,system:admin" onclick="navigate('security')" style="cursor:pointer;">
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex items-center gap-3">
+                                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="url(#afGrad)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                <div>
+                                    <h3 class="text-lg font-semibold">Security &amp; Access</h3>
+                                    <p class="text-sm text-gray-400 mt-1">Users, roles, groups, organization, MFA and security policies</p>
+                                </div>
+                            </div>
+                            <span class="text-gray-500">▸</span>
+                        </div>
+                    </div>
                     <!-- Theme Selection -->
                     <div class="card rounded-xl p-4 md:p-6">
                         <div class="mb-4">
@@ -4016,11 +4014,10 @@ Example: I need an HR agent that can:
     <!-- Mobile Bottom Navigation -->
     <nav class="mobile-nav">
         <button onclick="navigate('dashboard')" id="mob-dashboard" class="active"><span>🏠</span><span>Home</span></button>
-        <button onclick="navigate('chat')" id="mob-chat" data-permission="chat:use" class=""><span>💬</span><span>Chat</span></button>
         <button onclick="navigate('agents')" id="mob-agents" data-permission="agents:view" class=""><span>🔗</span><span>Hub</span></button>
-        <button onclick="navigate('processes')" id="mob-processes" data-permission="agents:view" class=""><span>🔄</span><span>Process</span></button>
-        <button onclick="navigate('create')" id="mob-create" data-permission="agents:create" class=""><span>🔨</span><span>Studio</span></button>
         <button onclick="navigate('tools')" id="mob-tools" data-permission="tools:view" class=""><span>🧩</span><span>Tools</span></button>
+        <button onclick="navigate('chat')" id="mob-chat" data-permission="chat:use" class=""><span>💬</span><span>Chat</span></button>
+        <button onclick="navigate('processes')" id="mob-processes" data-permission="agents:view" class=""><span>🔄</span><span>Process</span></button>
         <button onclick="navigate('settings')" id="mob-settings" data-permission="system:settings" class=""><span>⚙️</span><span>Settings</span></button>
     </nav>
 
@@ -7270,7 +7267,7 @@ Option 3"></textarea>
     <script src="/ui/index_parts/agent-integration.js?v=20260621b" defer></script>
     <script src="/ui/index_parts/features-tools-wizard.js?v=20260621m" defer></script>
     <script src="/ui/index_parts/features-chat.js?v=20260621s" defer></script>
-    <script src="/ui/index_parts/features-auth-permissions.js?v=20260621m" defer></script>
+    <script src="/ui/index_parts/features-auth-permissions.js?v=20260628a" defer></script>
     <script src="/ui/index_parts/features-security-identity.js?v=20260621m" defer></script>
     <script src="/ui/index_parts/features-email-settings.js?v=20260621m" defer></script>
     <script src="/ui/index_parts/features-approvals-page.js?v=20260621m" defer></script>

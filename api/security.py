@@ -891,13 +891,10 @@ async def login(request: LoginRequest, req: Request):
             import traceback
             traceback.print_exc()
         
-        # Debug: Print MFA code info
-        if user.mfa:
-            print(f"🔍 [LOGIN MFA DEBUG] User: {user.email}, email_code: {user.mfa.email_code}, expires: {user.mfa.email_code_expires}")
-            print(f"🔍 [LOGIN MFA DEBUG] Code provided: {request.mfa_code}")
-        else:
-            print(f"⚠️  [LOGIN MFA DEBUG] User {user.email} has no MFA object!")
-        
+        # Note: never log the actual MFA code or the user-supplied code (sensitive).
+        if not user.mfa:
+            print(f"⚠️  [LOGIN MFA] User {user.email} has no MFA object!")
+
         if not MFAService.verify_code(user, request.mfa_code):
             print(f"❌ [LOGIN] MFA code verification failed for {user.email}")
             raise HTTPException(status_code=401, detail="Invalid MFA code")

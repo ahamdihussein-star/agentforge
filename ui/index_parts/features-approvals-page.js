@@ -642,69 +642,58 @@ function updateSelectAllState() {
     }
 }
 
+// Single source of truth for the role-permission catalog (used by Add + Edit role modals).
+const PERMISSION_CATALOG = [
+    { category: '🔐 User Management', permissions: [
+        { id: 'users:view', name: 'View Users' },
+        { id: 'users:edit', name: 'Edit Users' },
+        { id: 'users:delete', name: 'Delete Users' },
+        { id: 'users:invite', name: 'Invite Users' },
+    ]},
+    { category: '🔐 Role Management', permissions: [
+        { id: 'roles:view', name: 'View Roles' },
+        { id: 'roles:create', name: 'Create Roles' },
+        { id: 'roles:edit', name: 'Edit Roles' },
+        { id: 'roles:delete', name: 'Delete Roles' },
+    ]},
+    { category: '🔐 Security & MFA', permissions: [
+        { id: 'security:settings', name: 'Security Settings' },
+        { id: 'mfa:manage', name: 'Manage MFA' },
+    ]},
+    { category: '🤖 AI Agents', permissions: [
+        { id: 'agents:view', name: 'View Agents' },
+        { id: 'agents:create', name: 'Create Agents' },
+        { id: 'agents:edit', name: 'Edit Agents' },
+        { id: 'agents:delete', name: 'Delete Agents' },
+        { id: 'agents:publish', name: 'Publish Agents' },
+    ]},
+    { category: '🤖 Tools & Integrations', permissions: [
+        { id: 'tools:view', name: 'View Tools' },
+        { id: 'tools:create', name: 'Create Tools' },
+        { id: 'tools:edit', name: 'Edit Tools' },
+        { id: 'tools:delete', name: 'Delete Tools' },
+        { id: 'tools:execute', name: 'Execute Tools' },
+    ]},
+    { category: '🤖 Chat', permissions: [
+        { id: 'chat:use', name: 'Use Chat' },
+        { id: 'chat:view_all', name: 'View All Chats' },
+        { id: 'chat:delete', name: 'Delete Chats' },
+    ]},
+    { category: '📊 Analytics & Audit', permissions: [
+        { id: 'audit:view', name: 'View Audit Logs' },
+        { id: 'audit:export', name: 'Export Audit Logs' },
+        { id: 'analytics:view', name: 'View Analytics' },
+        { id: 'reports:generate', name: 'Generate Reports' },
+    ]},
+    { category: '⚙️ System', permissions: [
+        { id: 'system:admin', name: 'Full System Admin' },
+        { id: 'system:settings', name: 'System Settings' },
+    ]},
+];
+
 // Show Add Role Modal
 function showAddRoleModal() {
-    const allPermissions = [
-        // Security - User Management
-        { category: '🔐 User Management', permissions: [
-            { id: 'users:view', name: 'View Users' },
-            { id: 'users:edit', name: 'Edit Users' },
-            { id: 'users:delete', name: 'Delete Users' },
-            { id: 'users:invite', name: 'Invite Users' },
-        ]},
-        // Security - Role Management
-        { category: '🔐 Role Management', permissions: [
-            { id: 'roles:view', name: 'View Roles' },
-            { id: 'roles:create', name: 'Create Roles' },
-            { id: 'roles:edit', name: 'Edit Roles' },
-            { id: 'roles:delete', name: 'Delete Roles' },
-        ]},
-        // Security - Security & MFA
-        { category: '🔐 Security & MFA', permissions: [
-            { id: 'security:settings', name: 'Security Settings' },
-            { id: 'mfa:manage', name: 'Manage MFA' },
-        ]},
-        // AI Agent - Agents
-        { category: '🤖 AI Agents', permissions: [
-            { id: 'agents:view', name: 'View Agents' },
-            { id: 'agents:create', name: 'Create Agents' },
-            { id: 'agents:edit', name: 'Edit Agents' },
-            { id: 'agents:delete', name: 'Delete Agents' },
-            { id: 'agents:publish', name: 'Publish Agents' },
-        ]},
-        // AI Agent - Tools
-        { category: '🤖 Tools & Integrations', permissions: [
-            { id: 'tools:view', name: 'View Tools' },
-            { id: 'tools:create', name: 'Create Tools' },
-            { id: 'tools:edit', name: 'Edit Tools' },
-            { id: 'tools:delete', name: 'Delete Tools' },
-            { id: 'tools:execute', name: 'Execute Tools' },
-        ]},
-        // AI Agent - Chat
-        { category: '🤖 Chat', permissions: [
-            { id: 'chat:use', name: 'Use Chat' },
-            { id: 'chat:view_all', name: 'View All Chats' },
-            { id: 'chat:delete', name: 'Delete Chats' },
-        ]},
-        // Analytics & Audit
-        { category: '📊 Analytics & Audit', permissions: [
-            { id: 'audit:view', name: 'View Audit Logs' },
-            { id: 'audit:export', name: 'Export Audit Logs' },
-            { id: 'analytics:view', name: 'View Analytics' },
-            { id: 'reports:generate', name: 'Generate Reports' },
-        ]},
-        // Demo Lab
-        { category: '🧪 Demo Lab', permissions: [
-            { id: 'demo:access', name: 'Access Demo Lab' },
-            { id: 'demo:create', name: 'Create Demos' },
-            { id: 'demo:share', name: 'Share Demos' },
-        ]},
-        // System
-        { category: '⚙️ System', permissions: [
-            { id: 'system:admin', name: 'Full System Admin' },
-            { id: 'system:settings', name: 'System Settings' },
-        ]},
-    ];
+    const allPermissions = PERMISSION_CATALOG;
     
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm';
@@ -764,67 +753,7 @@ function showEditRoleModal(roleId) {
     const role = securityRoles.find(r => r.id === roleId);
     if (!role) return;
     
-    const allPermissions = [
-        // Security - User Management
-        { category: '🔐 User Management', permissions: [
-            { id: 'users:view', name: 'View Users' },
-            { id: 'users:edit', name: 'Edit Users' },
-            { id: 'users:delete', name: 'Delete Users' },
-            { id: 'users:invite', name: 'Invite Users' },
-        ]},
-        // Security - Role Management
-        { category: '🔐 Role Management', permissions: [
-            { id: 'roles:view', name: 'View Roles' },
-            { id: 'roles:create', name: 'Create Roles' },
-            { id: 'roles:edit', name: 'Edit Roles' },
-            { id: 'roles:delete', name: 'Delete Roles' },
-        ]},
-        // Security - Security & MFA
-        { category: '🔐 Security & MFA', permissions: [
-            { id: 'security:settings', name: 'Security Settings' },
-            { id: 'mfa:manage', name: 'Manage MFA' },
-        ]},
-        // AI Agent - Agents
-        { category: '🤖 AI Agents', permissions: [
-            { id: 'agents:view', name: 'View Agents' },
-            { id: 'agents:create', name: 'Create Agents' },
-            { id: 'agents:edit', name: 'Edit Agents' },
-            { id: 'agents:delete', name: 'Delete Agents' },
-            { id: 'agents:publish', name: 'Publish Agents' },
-        ]},
-        // AI Agent - Tools
-        { category: '🤖 Tools & Integrations', permissions: [
-            { id: 'tools:view', name: 'View Tools' },
-            { id: 'tools:create', name: 'Create Tools' },
-            { id: 'tools:edit', name: 'Edit Tools' },
-            { id: 'tools:delete', name: 'Delete Tools' },
-            { id: 'tools:execute', name: 'Execute Tools' },
-        ]},
-        // AI Agent - Chat
-        { category: '🤖 Chat', permissions: [
-            { id: 'chat:use', name: 'Use Chat' },
-            { id: 'chat:view_all', name: 'View All Chats' },
-            { id: 'chat:delete', name: 'Delete Chats' },
-        ]},
-        // Analytics & Audit
-        { category: '📊 Analytics & Audit', permissions: [
-            { id: 'audit:view', name: 'View Audit Logs' },
-            { id: 'audit:export', name: 'Export Audit Logs' },
-            { id: 'analytics:view', name: 'View Analytics' },
-            { id: 'reports:generate', name: 'Generate Reports' },
-        ]},
-        // Demo Lab
-        { category: '🧪 Demo Lab', permissions: [
-            { id: 'demo:access', name: 'Access Demo Lab' },
-            { id: 'demo:create', name: 'Create Demos' },
-            { id: 'demo:share', name: 'Share Demos' },
-        ]},
-        // System
-        { category: '⚙️ System', permissions: [
-            { id: 'system:admin', name: 'Full System Admin' },
-            { id: 'system:settings', name: 'System Settings' },
-        ]},
-    ];
+    const allPermissions = PERMISSION_CATALOG;
     
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm';
