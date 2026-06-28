@@ -686,8 +686,15 @@ const PERMISSION_CATALOG = [
         { id: 'tools:edit', name: 'Edit Tools' },
         { id: 'tools:delete', name: 'Delete Tools' },
     ]},
-    { category: '💬 Chat', permissions: [
-        { id: 'chat:use', name: 'Use Chat' },
+    { category: '💬 Conversational Agents', permissions: [
+        { id: 'chat:use', name: 'Use Conversational Agents' },
+    ]},
+    { category: '🔄 Process Agents', permissions: [
+        { id: 'process:execute', name: 'Run Process Agents' },
+        { id: 'process:view_executions', name: 'View Own Executions' },
+        { id: 'process:view_all_executions', name: 'View All Executions' },
+        { id: 'process:cancel', name: 'Cancel Executions' },
+        { id: 'process:manage_approvals', name: 'Manage Approvals' },
     ]},
     { category: '📊 Audit', permissions: [
         { id: 'audit:view', name: 'View Audit Logs' },
