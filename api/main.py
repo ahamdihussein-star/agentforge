@@ -9514,7 +9514,7 @@ async def list_tools(current_user: User = Depends(get_current_user_optional)):
 
 
 @app.post("/api/tools")
-async def create_tool(request: CreateToolRequest, current_user: User = Depends(get_current_user_optional)):
+async def create_tool(request: CreateToolRequest, current_user: User = Depends(get_current_user)):
     _require_perm(current_user, "tools:create")
     # Check for duplicate name
     existing_names = [t.name.lower() for t in app_state.tools.values()]
@@ -9901,7 +9901,7 @@ async def debug_tool_ownership(tool_id: str, current_user: User = Depends(get_cu
 
 
 @app.delete("/api/tools/{tool_id}")
-async def delete_tool(tool_id: str, current_user: User = Depends(get_current_user_optional)):
+async def delete_tool(tool_id: str, current_user: User = Depends(get_current_user)):
     _require_perm(current_user, "tools:delete")
     if tool_id not in app_state.tools:
         raise HTTPException(404, "Tool not found")
@@ -11705,7 +11705,7 @@ class UpdateToolRequest(BaseModel):
 
 
 @app.put("/api/tools/{tool_id}")
-async def update_tool(tool_id: str, request: UpdateToolRequest, current_user: User = Depends(get_current_user_optional)):
+async def update_tool(tool_id: str, request: UpdateToolRequest, current_user: User = Depends(get_current_user)):
     _require_perm(current_user, "tools:edit")
     """Update tool configuration with automatic re-processing"""
     if tool_id not in app_state.tools:
@@ -16386,7 +16386,8 @@ async def test_document_generation():
         return {"error": str(e)}
 
 @app.post("/api/demo/create-tool")
-async def create_tool_from_demo(request: DemoCreateToolRequest, current_user: User = Depends(get_current_user_optional)):
+async def create_tool_from_demo(request: DemoCreateToolRequest, current_user: User = Depends(get_current_user)):
+    _require_perm(current_user, "tools:create")
     """Create an API tool from a generated mock API. Requires sign-in so you are set as owner and can edit/delete the tool."""
     if not current_user:
         raise HTTPException(status_code=401, detail="Sign in required to create a tool from Demo Lab so you can edit or delete it later.")
