@@ -282,6 +282,17 @@ async function editSecurityUser(userId) {
                         `).join('')}
                     </div>
                 </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">Groups</label>
+                    <div id="edit-user-groups" class="space-y-2">
+                        ${(Array.isArray(allGroups) && allGroups.length) ? allGroups.map(g => `
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" value="${g.id}" ${((user.group_ids || user.groups || []).includes(g.id)) ? 'checked' : ''} class="rounded">
+                                <span>${escHtml(g.name)}</span>
+                            </label>
+                        `).join('') : '<div class="text-xs text-gray-500 italic">No groups defined yet. Create groups in the Groups tab.</div>'}
+                    </div>
+                </div>
 
                 <div class="rounded-lg border border-gray-700 p-3 bg-gray-900/30">
                     <label class="block text-sm text-gray-400 mb-2">Password</label>
@@ -465,7 +476,9 @@ async function saveUserEdit(userId) {
     const status = document.getElementById('edit-user-status').value;
     const roleCheckboxes = document.querySelectorAll('#edit-user-roles input[type="checkbox"]:checked');
     const roleIds = Array.from(roleCheckboxes).map(cb => cb.value);
-    
+    const groupCheckboxes = document.querySelectorAll('#edit-user-groups input[type="checkbox"]:checked');
+    const groupIds = Array.from(groupCheckboxes).map(cb => cb.value);
+
     const schemaResp = await getOrgProfileFieldsSchemaForUserEdit();
     const schemaDefs = Array.isArray(schemaResp?.fields) ? schemaResp.fields : [];
     const schemaValues = collectSchemaFieldValues(schemaDefs);
@@ -486,6 +499,7 @@ async function saveUserEdit(userId) {
                 last_name: lastName,
                 status: status,
                 role_ids: roleIds,
+                group_ids: groupIds,
                 user_metadata: customFields
             })
         });
@@ -974,11 +988,12 @@ function goSettingsTab(key) {
     if (onSec) {
         switchSecurityTab(key);
     } else {
-        // navigate('security') kicks off async initSecurityPage which selects a default tab;
-        // defer our selection so it wins (same pattern used elsewhere in this file).
+        // navigate('security') kicks off async initSecurityPage which would otherwise pick a
+        // default tab; record the requested tab so init selects it (no timing race).
+        window.__pendingSecTab = key;
         if (typeof navigate === 'function') navigate('security');
         renderSettingsTabBar(key);
-        setTimeout(function () { switchSecurityTab(key); }, 220);
+        setTimeout(function () { switchSecurityTab(key); }, 260);
     }
 }
 
@@ -1046,7 +1061,13 @@ async function initSecurityPage() {
             break;
         }
     }
-    
+
+    // Honor a tab requested from the unified Settings tab bar (avoids a default-tab race).
+    if (window.__pendingSecTab) {
+        foundTab = window.__pendingSecTab;
+        window.__pendingSecTab = null;
+    }
+
     switchSecurityTab(foundTab);
 }
 

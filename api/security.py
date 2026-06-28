@@ -733,6 +733,10 @@ async def register(request: RegisterRequest, req: Request):
         "email_verification_required": settings.email_verification_required
     }
 
+# Brute-force protection for the login MFA-code step (in-memory, best-effort).
+_MFA_ATTEMPTS: dict = {}
+
+
 @router.post("/auth/login", response_model=AuthResponse)
 async def login(request: LoginRequest, req: Request):
     """Login with email and password"""
@@ -897,8 +901,27 @@ async def login(request: LoginRequest, req: Request):
 
         if not MFAService.verify_code(user, request.mfa_code):
             print(f"❌ [LOGIN] MFA code verification failed for {user.email}")
+            # Brute-force protection: lock the code step after repeated failures (fail-open on errors).
+            try:
+                import time as _t
+                rec = _MFA_ATTEMPTS.get(user.id)
+                if not rec or (_t.time() - rec.get("first", 0)) > 900:  # 15-min rolling window
+                    rec = {"count": 0, "first": _t.time()}
+                rec["count"] += 1
+                _MFA_ATTEMPTS[user.id] = rec
+                if rec["count"] >= 5:
+                    raise HTTPException(status_code=429, detail="Too many incorrect codes. Please wait a few minutes and request a new code.")
+            except HTTPException:
+                raise
+            except Exception:
+                pass
             raise HTTPException(status_code=401, detail="Invalid MFA code")
-        
+
+        # Successful verification clears the failed-attempt counter.
+        try:
+            _MFA_ATTEMPTS.pop(user.id, None)
+        except Exception:
+            pass
         print(f"✅ [LOGIN] MFA code verified successfully for {user.email}")
         user.mfa.last_used = datetime.utcnow().isoformat()
         
