@@ -501,6 +501,7 @@ Return only valid JSON, no markdown or explanation."""
     async def _generate_document_content(cls, description: str) -> str:
         """Generate document content using AI -- always with realistic filled-in data."""
         client = cls._get_ai_client()
+        today = datetime.utcnow().strftime('%B %d, %Y')
 
         if client:
             try:
@@ -523,7 +524,7 @@ Return only valid JSON, no markdown or explanation."""
                             "- Match the real-world layout and tone of the requested document type "
                             "(e.g. a ticket, invoice, contract, letter, or report)."
                         )},
-                        {"role": "user", "content": f"Write a complete, professional, realistic document with all data filled in for:\n\n{description}"}
+                        {"role": "user", "content": f"Today's date is {today}; use the current year for any dates unless the content is explicitly historical. Do NOT label sections as 'Slide 1/2/3' — use real, descriptive section titles, and produce only the number of sections the request implies. Write a complete, professional, realistic document with all data filled in for:\n\n{description}"}
                     ],
                     temperature=0.7,
                     max_tokens=3000
@@ -550,6 +551,8 @@ For further details or inquiries, please contact the responsible department.
     async def _generate_financial_document_data(cls, name: str, description: str) -> Dict[str, Any]:
         """Generate structured JSON data for financial documents (invoices, receipts, etc.)."""
         client = cls._get_ai_client()
+        today = datetime.utcnow().strftime('%B %d, %Y')
+        year = datetime.utcnow().year
 
         prompt = f"""Generate realistic financial-document data for this request.
 
@@ -577,7 +580,7 @@ Return ONLY a JSON object with EXACTLY these keys:
 RULES:
 - 3-6 line items, SPECIFIC to the described business (not generic "Consulting").
 - Realistic pricing; compute subtotal, tax (= subtotal * rate), and total CORRECTLY.
-- Use a current, sensible document_date and a later due_date.
+- document_date MUST be today's date: {today}. due_date about 30 days later. Use the current year {year} in document_number (e.g. INV-{year}-XXXXX). NEVER use past years like 2023 or 2024.
 - NEVER use placeholders like [Company]. Every value must be concrete and consistent with the context."""
 
         if client:
@@ -1557,7 +1560,9 @@ RULES:
     async def _generate_structured_image_content(cls, description: str, document_type: str) -> Dict[str, Any]:
         """Generate structured content for image using AI"""
         client = cls._get_ai_client()
-        
+        today = datetime.utcnow().strftime('%B %d, %Y')
+        year = datetime.utcnow().year
+
         prompt = f"""Generate realistic document data for this request:
 
 Description: {description}
@@ -1593,6 +1598,7 @@ IMPORTANT:
 - Make all data realistic and contextual to the description
 - Money fields (subtotal, tax, total) MUST be plain numbers as strings (e.g. '4,725.00'); put the currency ONLY in "currency". Never write "Total amount:" inside a value.
 - Infer currency and tax from the country (UAE/GCC -> currency 'AED', tax_label 'VAT', tax_rate '5%'). Compute tax = subtotal * rate and total = subtotal + tax correctly.
+- Today is {today}. Use the CURRENT year {year} in all dates and reference/document numbers. NEVER use past years like 2023 or 2024.
 - For airline tickets: include passenger name, flight number, route, date/time, seat, class
 - For invoices: include line items with quantities and prices
 
