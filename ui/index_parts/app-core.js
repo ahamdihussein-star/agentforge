@@ -528,7 +528,7 @@ const API='';
                     console.error('🎯 [CREATE] ERROR in resetWizardNew():', e);
                 }
             }
-            if(p==='settings'){ loadSettings(); updateThemeButtons(localStorage.getItem('agentforge-theme') || 'dark'); loadIdentitySettings(); }
+            if(p==='settings'){ loadSettings(); updateThemeButtons(localStorage.getItem('agentforge-theme') || 'dark'); loadIdentitySettings(); if(typeof renderSettingsTabBar==='function') renderSettingsTabBar('general'); }
             if(p==='profile') loadProfileInfo();
             if(p==='demo')initDemoLab();
             if(p==='approvals') loadApprovals();

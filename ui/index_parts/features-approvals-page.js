@@ -929,6 +929,59 @@ function renderSecurityRoles() {
 }
 
 // Switch security tab
+// ---- Unified Settings tab bar (Security is nested under Settings as tabs) ----
+const SETTINGS_TABS = [
+    { key: 'general',  label: 'General',             perm: 'system:settings' },
+    { key: 'users',    label: 'Users & Access',      perm: 'users:view' },
+    { key: 'roles',    label: 'Roles',               perm: 'roles:view' },
+    { key: 'groups',   label: 'Groups',              perm: 'users:view' },
+    { key: 'org',      label: 'Organization',        perm: 'users:view' },
+    { key: 'mfa',      label: 'Authentication & MFA', perm: null },
+    { key: 'audit',    label: 'Audit Log',           perm: 'audit:view' },
+    { key: 'settings', label: 'Policies',            perm: 'security:settings' },
+];
+
+function _ensureSettingsTabStyle() {
+    if (document.getElementById('af-stab-style')) return;
+    const st = document.createElement('style');
+    st.id = 'af-stab-style';
+    st.textContent =
+        '.settings-tabbar{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border-color);margin-bottom:20px;}' +
+        '.af-stab{padding:9px 14px;border:none;background:transparent;color:var(--text-secondary);font-size:.9rem;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;border-radius:8px 8px 0 0;transition:color .15s,background .15s;}' +
+        '.af-stab:hover{color:var(--text-primary);background:var(--bg-secondary);}' +
+        '.af-stab.active{color:var(--accent-primary,#8b5cf6);border-bottom-color:var(--accent-primary,#8b5cf6);font-weight:600;}';
+    document.head.appendChild(st);
+}
+
+function renderSettingsTabBar(active) {
+    _ensureSettingsTabStyle();
+    const html = SETTINGS_TABS.map(function (t) {
+        const perm = t.perm ? (' data-permission="' + t.perm + '"') : '';
+        const cls = 'af-stab' + (t.key === active ? ' active' : '');
+        return '<button' + perm + ' onclick="goSettingsTab(\'' + t.key + '\')" class="' + cls + '">' + t.label + '</button>';
+    }).join('');
+    document.querySelectorAll('.settings-tabbar').forEach(function (el) { el.innerHTML = html; });
+    if (typeof updateUIByPermissions === 'function') { try { updateUIByPermissions(); } catch (e) {} }
+}
+
+function goSettingsTab(key) {
+    if (key === 'general') {
+        if (typeof navigate === 'function') navigate('settings');
+        renderSettingsTabBar('general');
+        return;
+    }
+    const onSec = (typeof _currentPage !== 'undefined' && _currentPage === 'security');
+    if (onSec) {
+        switchSecurityTab(key);
+    } else {
+        // navigate('security') kicks off async initSecurityPage which selects a default tab;
+        // defer our selection so it wins (same pattern used elsewhere in this file).
+        if (typeof navigate === 'function') navigate('security');
+        renderSettingsTabBar(key);
+        setTimeout(function () { switchSecurityTab(key); }, 220);
+    }
+}
+
 function switchSecurityTab(tab) {
     const tabs = ['users', 'roles', 'groups', 'org', 'audit', 'mfa', 'settings'];
     
@@ -969,6 +1022,9 @@ function switchSecurityTab(tab) {
     if (tab === 'settings') loadSecuritySettings();
     if (tab === 'groups') loadGroups();
     if (tab === 'org') loadOrgTab();
+
+    // Keep the unified Settings tab bar in sync (Security tabs live under Settings).
+    if (typeof renderSettingsTabBar === 'function') renderSettingsTabBar(tab);
 }
 
 // Initialize security page
